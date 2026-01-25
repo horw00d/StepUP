@@ -3,10 +3,7 @@ import traceback
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 from models import Footstep, Trial
-
-# --- DATABASE SETUP ---
-DATABASE_URL = "sqlite:///stepup.db"
-engine = create_engine(DATABASE_URL)
+from database import engine, Session
 
 # --- CONSTANTS ---
 SENSOR_AREA_M2 = 2.5e-5  # (0.5cm * 0.5cm)
