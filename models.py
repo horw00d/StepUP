@@ -48,6 +48,10 @@ class Footstep(Base):
     side: Mapped[str] = mapped_column(String(5))
     orientation: Mapped[int] = mapped_column(Integer)
 
+    foot_length: Mapped[float] = mapped_column(Float, nullable=True)
+    foot_width: Mapped[float] = mapped_column(Float, nullable=True)
+    rotation_angle: Mapped[float] = mapped_column(Float, nullable=True)
+
     r_score: Mapped[float] = mapped_column(Float)
     mean_grf: Mapped[float] = mapped_column(Float)
     

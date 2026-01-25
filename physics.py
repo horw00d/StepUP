@@ -13,7 +13,6 @@ SENSOR_AREA_M2 = 2.5e-5  # (0.5cm * 0.5cm)
 SENSOR_SIDE_CM = 0.5     # 5mm
 
 def get_footstep_physics(footstep_id):
-    print(f"\n--- PHYSICS ENGINE STARTED (ID: {footstep_id}) ---")
     
     with Session(engine) as session:
         # 1. Fetch Metadata
@@ -27,7 +26,6 @@ def get_footstep_physics(footstep_id):
         try:
             file_path = step.trial.file_path
             idx = step.footstep_index
-            print(f"Target: {file_path} | Index: {idx}")
         except Exception as e:
             print("ERROR accessing Trial relationship:")
             print(traceback.format_exc())
@@ -36,20 +34,14 @@ def get_footstep_physics(footstep_id):
         # 3. Load Raw Tensor
         try:
             with np.load(file_path) as data:
-                # Debugging keys
-                print(f"File Keys Sample: {list(data.keys())[:5]}")
-                
                 tensor = None
                 
                 # Format A: Batch
                 if 'arr_0' in data:
-                    print("Mode: Batch (arr_0)")
                     tensor = data['arr_0'][idx]
                 
                 # Format B: Fragmented
                 else:
-                    print("Mode: Fragmented")
-                    # Force integer to string conversion
                     str_idx = str(idx)
                     
                     if str_idx in data:
@@ -57,8 +49,6 @@ def get_footstep_physics(footstep_id):
                     else:
                         print(f"ERROR: Key '{str_idx}' not found in file.")
                         return None
-                
-                print(f"Tensor Loaded! Shape: {tensor.shape}")
 
                 # 4. Calculate GRF (Equation 1)
                 # Sum across spatial axes (1, 2)
@@ -87,7 +77,6 @@ def get_footstep_physics(footstep_id):
                         cop_ml.append(c_x)
                         cop_ap.append(c_y)
 
-                print("Calculations complete. Returning data.")
                 return {
                     "time_pct": np.linspace(0, 100, len(grf_curve)),
                     "grf": grf_curve,
@@ -97,7 +86,6 @@ def get_footstep_physics(footstep_id):
                 }
 
         except Exception:
-            # THIS IS THE KEY: Print the actual error causing the failure
             print("CRITICAL EXCEPTION IN PHYSICS MODULE:")
             print(traceback.format_exc())
             return None
