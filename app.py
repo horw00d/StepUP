@@ -36,7 +36,6 @@ def get_dropdown_options(model_col):
 app.layout = html.Div(style={'height': '100vh', 'display': 'flex', 'flexDirection': 'column', 'padding': '20px'}, children=[
     
     # --- STORE (The Invisible "Brain") ---
-    # This holds the ID of the selected footstep, no matter which tab you clicked it in.
     dcc.Store(id='selected-step-store'),
 
     # --- HEADER & CONTROLS ---
@@ -55,37 +54,53 @@ app.layout = html.Div(style={'height': '100vh', 'display': 'flex', 'flexDirectio
     # --- MIDDLE: TABS (The Split View) ---
     dcc.Tabs(id="view-tabs", value='tab-feature', children=[
         
-        # TAB 1: FEATURE ANALYSIS (Scatter Plot)
+        # TAB 1: FEATURE ANALYSIS (Split: Scatter + Rug)
         dcc.Tab(label='Feature Analysis', value='tab-feature', children=[
-            html.Div(style={'display': 'flex', 'gap': '20px', 'height': '450px', 'padding': '20px'}, children=[
-                # Left: Scatter
-                html.Div(style={'flex': '3', 'border': '1px solid #ccc', 'borderRadius': '5px', 'padding': '10px'}, children=[
-                    dcc.Graph(id='main-scatter', style={'height': '100%'})
+            html.Div(style={'display': 'flex', 'gap': '20px', 'height': '550px', 'padding': '20px'}, children=[
+                
+                # LEFT COLUMN: Graphs (Scatter Top, Rug Bottom)
+                html.Div(style={'flex': '3', 'display': 'flex', 'flexDirection': 'column', 'gap': '15px'}, children=[
+                    # Top: Main 2D Scatter
+                    html.Div(style={'flex': '2', 'border': '1px solid #ccc', 'borderRadius': '5px', 'padding': '10px'}, children=[
+                        dcc.Graph(id='main-scatter', style={'height': '100%'})
+                    ]),
+                    # Bottom: 1D Rug Plot
+                    html.Div(style={'flex': '1', 'border': '1px solid #ccc', 'borderRadius': '5px', 'padding': '10px'}, children=[
+                        dcc.Graph(id='rug-plot', style={'height': '100%'})
+                    ]),
                 ]),
-                # Right: Controls
+
+                # RIGHT COLUMN: Controls
                 html.Div(style={'flex': '1', 'backgroundColor': '#f9f9f9', 'padding': '20px', 'borderRadius': '5px', 'overflowY': 'auto'}, children=[
                     html.H5("Axis Controls"),
-                    html.Label("X-Axis Feature:"),
+                    html.Label("Scatter X-Axis:"),
                     dcc.Dropdown(id='xaxis-dd', options=FEATURE_OPTIONS, value='start_frame', clearable=False),
                     html.Br(),
-                    html.Label("Y-Axis Feature:"),
+                    html.Label("Scatter Y-Axis:"),
                     dcc.Dropdown(id='yaxis-dd', options=FEATURE_OPTIONS, value='mean_grf', clearable=False),
                     html.Br(),
+                    html.Hr(),
+                    
+                    # NEW CONTROL FOR RUG PLOT
+                    html.Label("Rug Plot Feature:"),
+                    dcc.Dropdown(id='rug-dd', options=FEATURE_OPTIONS, value='r_score', clearable=False),
+                    html.Br(),
+                    
+                    html.Hr(),
                     html.Label("Color By:"),
                     dcc.Dropdown(id='color-dd', options=[
                         {'label': 'Side (L/R)', 'value': 'side'},
                         {'label': 'Outlier Status', 'value': 'is_outlier'}
                     ], value='side', clearable=False),
-                    html.Hr(),
-                    html.P("Click points to view physics below.", style={'color': '#666', 'fontSize': '0.9em'})
+                    html.Br(),
+                    html.P("Click points on EITHER graph to view physics below.", style={'color': '#666', 'fontSize': '0.9em', 'fontStyle': 'italic'})
                 ])
             ])
         ]),
 
         # TAB 2: FOOTSTEP LIBRARY (Image Grid)
         dcc.Tab(label='Footstep Library', value='tab-library', children=[
-            html.Div(style={'height': '450px', 'overflowY': 'auto', 'padding': '20px'}, children=[
-                # The Grid Container
+            html.Div(style={'height': '550px', 'overflowY': 'auto', 'padding': '20px'}, children=[
                 html.Div(id='image-grid', style={
                     'display': 'grid',
                     'gridTemplateColumns': 'repeat(auto-fill, minmax(140px, 1fr))',
@@ -97,16 +112,10 @@ app.layout = html.Div(style={'height': '100vh', 'display': 'flex', 'flexDirectio
 
     # --- BOTTOM: DETAILED PHYSICS (Global) ---
     html.Div(style={'flex': '1.5', 'marginTop': '10px', 'borderTop': '2px solid #eee', 'paddingTop': '10px'}, children=[
-        html.H4("Single Step Physics", style={'marginBottom': '10px'}),
+        html.H4("Deep Dive: Single Step Physics", style={'marginBottom': '10px'}),
         html.Div(style={'display': 'flex', 'gap': '20px', 'height': '300px'}, children=[
-            # Graph 1: GRF
-            html.Div(style={'flex': '1', 'border': '1px solid #eee'}, children=[
-                dcc.Graph(id='grf-plot', style={'height': '100%'})
-            ]),
-            # Graph 2: COP
-            html.Div(style={'flex': '1', 'border': '1px solid #eee'}, children=[
-                dcc.Graph(id='cop-plot', style={'height': '100%'})
-            ])
+            html.Div(style={'flex': '1', 'border': '1px solid #eee'}, children=[dcc.Graph(id='grf-plot', style={'height': '100%'})]),
+            html.Div(style={'flex': '1', 'border': '1px solid #eee'}, children=[dcc.Graph(id='cop-plot', style={'height': '100%'})])
         ])
     ])
 ])
@@ -114,10 +123,10 @@ app.layout = html.Div(style={'height': '100vh', 'display': 'flex', 'flexDirectio
 
 # 3. CALLBACKS
 
-# A. Update BOTH Views (Scatter & Grid) when Trial Changes
-# Note: We update both even if one is hidden, so they are ready when you switch tabs.
+# A. Update ALL Views (Scatter, Rug, Grid)
 @app.callback(
     [Output('main-scatter', 'figure'),
+     Output('rug-plot', 'figure'),     # NEW OUTPUT
      Output('image-grid', 'children'),
      Output('trial-status', 'children')],
     [Input('part-dd', 'value'),
@@ -125,11 +134,12 @@ app.layout = html.Div(style={'height': '100vh', 'display': 'flex', 'flexDirectio
      Input('speed-dd', 'value'),
      Input('xaxis-dd', 'value'),
      Input('yaxis-dd', 'value'),
+     Input('rug-dd', 'value'),         # NEW INPUT
      Input('color-dd', 'value')]
 )
-def update_views(part, shoe, speed, x_col, y_col, color_col):
+def update_views(part, shoe, speed, x_col, y_col, rug_col, color_col):
     if not (part and shoe and speed):
-        return no_update, [], ""
+        return no_update, no_update, [], ""
 
     with Session(engine) as session:
         # Find Trial
@@ -137,15 +147,15 @@ def update_views(part, shoe, speed, x_col, y_col, color_col):
         trial = session.scalar(stmt)
         
         if not trial:
-            empty_fig = px.scatter(title="No Data")
-            return empty_fig, html.Div("No Data"), "Status: No Trial Found"
+            empty = px.scatter(title="No Data")
+            return empty, empty, html.Div("No Data"), "Status: No Trial Found"
 
         # Fetch Steps
         steps = session.scalars(
             select(Footstep).where(Footstep.trial_id == trial.id).order_by(Footstep.footstep_index)
         ).all()
         
-        # 1. GENERATE SCATTER DATA
+        # 1. GENERATE DATA
         data = [{
             'id': s.id,
             'footstep_index': s.footstep_index,
@@ -161,24 +171,42 @@ def update_views(part, shoe, speed, x_col, y_col, color_col):
         
         df = pd.DataFrame(data)
 
-        # 2. BUILD SCATTER FIGURE
         if df.empty:
-            fig = px.scatter(title="Empty Trial")
-        else:
-            fig = px.scatter(
-                df, x=x_col, y=y_col, color=color_col,
-                hover_data=['footstep_index', 'id'],
-                custom_data=['id'], # Critical for click tracking
-                title=f"Trial Feature Analysis"
-            )
-            fig.update_layout(clickmode='event+select', margin=dict(l=20, r=20, t=30, b=20))
-            fig.update_traces(marker_size=10)
+            empty = px.scatter(title="Empty Trial")
+            return empty, empty, [], f"Trial: {part} (Empty)"
 
-        # 3. BUILD IMAGE GRID
+        # 2. BUILD SCATTER FIGURE (2D)
+        scatter_fig = px.scatter(
+            df, x=x_col, y=y_col, color=color_col,
+            hover_data=['footstep_index', 'id'],
+            custom_data=['id'], 
+            title=f"2D Feature Analysis: {x_col} vs {y_col}"
+        )
+        scatter_fig.update_layout(clickmode='event+select', margin=dict(l=20, r=20, t=30, b=20))
+        scatter_fig.update_traces(marker_size=10)
+
+        # 3. BUILD RUG FIGURE (1D Strip Plot)
+        # 'stripmode="overlay"' makes it look like a classic rug plot but with clickable dots
+        rug_fig = px.strip(
+            df, 
+            x=rug_col, 
+            color=color_col, 
+            stripmode='overlay',
+            hover_data=['footstep_index', 'id'],
+            custom_data=['id'], # Critical for click tracking
+            title=f"1D Distribution: {rug_col}"
+        )
+        rug_fig.update_layout(
+            clickmode='event+select', 
+            margin=dict(l=20, r=20, t=30, b=20),
+            yaxis={'visible': False, 'showticklabels': False}, # Hide Y axis to make it look like a 1D timeline
+            height=150 # Force it to be shorter
+        )
+        rug_fig.update_traces(marker_size=8, jitter=0.5) # Jitter prevents overlap
+
+        # 4. BUILD IMAGE GRID
         grid_items = []
         for step in steps:
-            # We wrap the image in a Div that has an 'index' equal to the Database ID
-            # This allows pattern matching in the next callback
             item = html.Div(
                 id={'type': 'grid-card', 'index': step.id},
                 n_clicks=0,
@@ -192,40 +220,39 @@ def update_views(part, shoe, speed, x_col, y_col, color_col):
 
         status = f"Trial: {part}-{shoe}-{speed} ({len(steps)} steps)"
         
-        return fig, grid_items, status
+        return scatter_fig, rug_fig, grid_items, status
 
 
-# B. UNIFIED SELECTION HANDLER
-# This listens to BOTH the Scatter Plot AND the Grid Items
+# B. UNIFIED SELECTION HANDLER (Now listens to Rug Plot too!)
 @app.callback(
     Output('selected-step-store', 'data'),
     [Input('main-scatter', 'clickData'),
-     Input({'type': 'grid-card', 'index': ALL}, 'n_clicks')], # Pattern Matching
+     Input('rug-plot', 'clickData'),           # NEW LISTENER
+     Input({'type': 'grid-card', 'index': ALL}, 'n_clicks')],
     prevent_initial_call=True
 )
-def handle_selection(scatter_click, grid_clicks):
-    # We use dash.ctx to determine WHO triggered the callback
+def handle_selection(scatter_click, rug_click, grid_clicks):
     trigger_id = ctx.triggered_id
     
     if not trigger_id:
         return no_update
 
     # Case 1: Scatter Plot Clicked
-    if trigger_id == 'main-scatter':
-        if not scatter_click: return no_update
-        # Extract ID from customdata
+    if trigger_id == 'main-scatter' and scatter_click:
         return scatter_click['points'][0]['customdata'][0]
 
-    # Case 2: Grid Item Clicked
-    # trigger_id will look like {'type': 'grid-card', 'index': 12345}
+    # Case 2: Rug Plot Clicked
+    if trigger_id == 'rug-plot' and rug_click:
+        return rug_click['points'][0]['customdata'][0]
+
+    # Case 3: Grid Item Clicked
     if isinstance(trigger_id, dict) and trigger_id.get('type') == 'grid-card':
-        # The 'index' in the dictionary IS the footstep database ID
         return trigger_id['index']
     
     return no_update
 
 
-# C. UPDATE PHYSICS GRAPHS (Listens only to the Store)
+# C. UPDATE PHYSICS GRAPHS
 @app.callback(
     [Output('grf-plot', 'figure'),
      Output('cop-plot', 'figure')],
@@ -234,15 +261,13 @@ def handle_selection(scatter_click, grid_clicks):
 def render_physics(footstep_id):
     empty_layout = go.Layout(
         xaxis={"visible": False}, yaxis={"visible": False}, 
-        annotations=[{"text": "Select a step from Analysis or Library", "showarrow": False, "font": {"size": 16}}]
+        annotations=[{"text": "Select a step to view physics", "showarrow": False, "font": {"size": 16}}]
     )
     
     if not footstep_id:
         return go.Figure(layout=empty_layout), go.Figure(layout=empty_layout)
 
-    # Call Physics Module
     metrics = physics.get_footstep_physics(footstep_id)
-    
     if not metrics:
         return go.Figure(layout=empty_layout), go.Figure(layout=empty_layout)
 
