@@ -21,10 +21,10 @@ FEATURE_OPTIONS = [
     {'label': 'Footstep Sequence ID', 'value': 'footstep_index'},
     {'label': 'Start Frame (Time)', 'value': 'start_frame'},
     {'label': 'R-Score (Quality)', 'value': 'r_score'},
-    {'label': 'Mean GRF (Pressure)', 'value': 'mean_grf'}
-    # {'label': 'Foot Length', 'value': 'foot_length'},
-    # {'label': 'Foot Width', 'value': 'foot_width'},
-    # {'label': 'Rotation Angle', 'value': 'rotation_angle'},
+    {'label': 'Mean GRF (Pressure)', 'value': 'mean_grf'},
+    {'label': 'Foot Length', 'value': 'foot_length'},
+    {'label': 'Foot Width', 'value': 'foot_width'},
+    {'label': 'Rotation Angle', 'value': 'rotation_angle'},
 ]
 
 def get_dropdown_options(model_col):
@@ -97,7 +97,7 @@ app.layout = html.Div(style={'height': '100vh', 'display': 'flex', 'flexDirectio
 
     # --- BOTTOM: DETAILED PHYSICS (Global) ---
     html.Div(style={'flex': '1.5', 'marginTop': '10px', 'borderTop': '2px solid #eee', 'paddingTop': '10px'}, children=[
-        html.H4("Deep Dive: Single Step Physics", style={'marginBottom': '10px'}),
+        html.H4("Single Step Physics", style={'marginBottom': '10px'}),
         html.Div(style={'display': 'flex', 'gap': '20px', 'height': '300px'}, children=[
             # Graph 1: GRF
             html.Div(style={'flex': '1', 'border': '1px solid #eee'}, children=[
@@ -152,9 +152,9 @@ def update_views(part, shoe, speed, x_col, y_col, color_col):
             'start_frame': s.start_frame,
             'mean_grf': s.mean_grf,
             'r_score': s.r_score,
-            # 'foot_length': s.foot_length,
-            # 'foot_width': s.foot_width,
-            # 'rotation_angle': s.rotation_angle,
+            'foot_length': s.foot_length,
+            'foot_width': s.foot_width,
+            'rotation_angle': s.rotation_angle,
             'side': s.side,
             'is_outlier': "Outlier" if s.is_outlier else "Normal"
         } for s in steps]
