@@ -4,21 +4,19 @@ import plotly.graph_objects as go
 import plotly.express as px
 from sqlalchemy import select
 import pandas as pd
-
-# Import our new modules
 from database import Session, engine
 from models import Trial, Footstep
 from layout import create_layout
 import physics 
 
-# 1. SETUP
+# 1. Setup
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets, title="StepUP Analyst")
 
-# 2. INJECT LAYOUT
+# 2. Inject Layout
 app.layout = create_layout()
 
-# 3. CALLBACKS
+# 3. Callbacks
 
 # A. Update Views
 @app.callback(
@@ -50,7 +48,7 @@ def update_views(part, shoe, speed, x_col, y_col, rug_col, color_col):
             select(Footstep).where(Footstep.trial_id == trial.id).order_by(Footstep.footstep_index)
         ).all()
         
-        # Data Generation
+        # Data generation
         data = [{
             'id': s.id,
             'footstep_index': s.footstep_index,
@@ -107,7 +105,7 @@ def update_views(part, shoe, speed, x_col, y_col, rug_col, color_col):
         return scatter_fig, rug_fig, grid_items, f"Trial: {part}-{shoe}-{speed} ({len(steps)} steps)"
 
 
-# B. Unified Selection
+# B. Unified selection
 @app.callback(
     Output('selected-step-store', 'data'),
     [Input('main-scatter', 'clickData'),
@@ -131,7 +129,7 @@ def handle_selection(scatter_click, rug_click, grid_clicks):
     return no_update
 
 
-# C. Physics Rendering
+# C. Physics rendering
 @app.callback(
     [Output('grf-plot', 'figure'),
      Output('cop-plot', 'figure')],

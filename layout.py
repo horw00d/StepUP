@@ -3,7 +3,7 @@ from sqlalchemy import select, distinct
 from models import Trial, Participant
 from database import engine, Session
 
-# --- CONSTANTS ---
+# Constants
 FEATURE_OPTIONS = [
     {'label': 'Footstep Sequence ID', 'value': 'footstep_index'},
     {'label': 'Start Frame (Time)', 'value': 'start_frame'},
@@ -14,13 +14,13 @@ FEATURE_OPTIONS = [
     {'label': 'Rotation Angle', 'value': 'rotation_angle'},
 ]
 
-# --- HELPERS ---
+# Helpers
 def get_dropdown_options(model_col):
     with Session(engine) as session:
         results = session.scalars(select(distinct(model_col)).order_by(model_col)).all()
         return [{'label': str(x), 'value': str(x)} for x in results]
 
-# --- MAIN LAYOUT FUNCTION ---
+# Main layout function
 def create_layout():
     return html.Div(style={'height': '100vh', 'display': 'flex', 'flexDirection': 'column', 'padding': '20px'}, children=[
         
@@ -42,7 +42,7 @@ def create_layout():
         dcc.Tabs(id="view-tabs", value='tab-feature', children=[
             dcc.Tab(label='Feature Analysis', value='tab-feature', children=[
                 html.Div(style={'display': 'flex', 'gap': '20px', 'height': '550px', 'padding': '20px'}, children=[
-                    # Left Col: Graphs
+                    # Left col: graphs
                     html.Div(style={'flex': '3', 'display': 'flex', 'flexDirection': 'column', 'gap': '15px'}, children=[
                         html.Div(style={'flex': '2', 'border': '1px solid #ccc', 'borderRadius': '5px', 'padding': '10px'}, children=[
                             dcc.Graph(id='main-scatter', style={'height': '100%'})
@@ -51,7 +51,7 @@ def create_layout():
                             dcc.Graph(id='rug-plot', style={'height': '100%'})
                         ]),
                     ]),
-                    # Right Col: Controls
+                    # Right col: controls
                     html.Div(style={'flex': '1', 'backgroundColor': '#f9f9f9', 'padding': '20px', 'borderRadius': '5px', 'overflowY': 'auto'}, children=[
                         html.H5("Axis Controls"),
                         html.Label("Scatter X-Axis:"),
@@ -84,7 +84,7 @@ def create_layout():
             ])
         ]),
 
-        # Bottom Graphs
+        # Bottom graphs (GRF & COP)
         html.Div(style={'flex': '1.5', 'marginTop': '10px', 'borderTop': '2px solid #eee', 'paddingTop': '10px'}, children=[
             html.H4("Deep Dive: Single Step Physics", style={'marginBottom': '10px'}),
             html.Div(style={'display': 'flex', 'gap': '20px', 'height': '300px'}, children=[

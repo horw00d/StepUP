@@ -2,7 +2,7 @@ from typing import List, Optional
 from sqlalchemy import String, Integer, Float, Boolean, ForeignKey, create_engine, UniqueConstraint, Index
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
-# Legacy/1.4 style for compatibility with your environment
+# Legacy/1.4 style for compatibility with this environment
 from sqlalchemy.orm import declarative_base
 Base = declarative_base()
 
