@@ -18,7 +18,7 @@ def generate_assets():
     stmt = select(Trial).where(Trial.file_path.is_not(None))
     trials = session.scalars(stmt).all()
     
-    print(f"Found {len(trials)} trials to process...")
+    print(f"{len(trials)} to process")
 
     for trial in trials:
         if not os.path.exists(trial.file_path):
@@ -76,8 +76,6 @@ def generate_assets():
         except Exception as e:
             print(f"CRITICAL ERROR loading {trial.file_path}: {e}")
             continue
-
-    print("Asset generation complete!")
 
 if __name__ == "__main__":
     generate_assets()
