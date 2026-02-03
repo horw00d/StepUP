@@ -7,18 +7,19 @@ import pandas as pd
 from database import Session, engine
 from models import Trial, Footstep
 from layout import create_layout
+from graphics import create_walkway_plot
 import physics 
 
-# 1. Setup
+#1 setup
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets, title="StepUP Analyst")
 
-# 2. Inject Layout
+#2 inject Layout
 app.layout = create_layout()
 
-# 3. Callbacks
+#3 Callbacks
 
-# A. Update Views
+#update views
 @app.callback(
     [Output('main-scatter', 'figure'),
      Output('rug-plot', 'figure'),
@@ -30,13 +31,15 @@ app.layout = create_layout()
      Input('xaxis-dd', 'value'),
      Input('yaxis-dd', 'value'),
      Input('rug-dd', 'value'),
-     Input('color-dd', 'value')]
+     Input('color-dd', 'value'),
+     Input('selected-step-store', 'data')]
 )
-def update_views(part, shoe, speed, x_col, y_col, rug_col, color_col):
+def update_views(part, shoe, speed, x_col, y_col, rug_col, color_col, selected_step_id):
     if not (part and shoe and speed):
         return no_update, no_update, [], ""
 
     with Session(engine) as session:
+        #1 fetch Trial
         stmt = select(Trial).where(Trial.participant_id == part, Trial.footwear == shoe, Trial.speed == speed)
         trial = session.scalar(stmt)
         
@@ -44,11 +47,12 @@ def update_views(part, shoe, speed, x_col, y_col, rug_col, color_col):
             empty = px.scatter(title="No Data")
             return empty, empty, html.Div("No Data"), "Status: No Trial Found"
 
+        #2 fetch Steps
         steps = session.scalars(
             select(Footstep).where(Footstep.trial_id == trial.id).order_by(Footstep.footstep_index)
         ).all()
         
-        # Data generation
+        #3 build Dataframe
         data = [{
             'id': s.id,
             'footstep_index': s.footstep_index,
@@ -68,7 +72,8 @@ def update_views(part, shoe, speed, x_col, y_col, rug_col, color_col):
             empty = px.scatter(title="Empty Trial")
             return empty, empty, [], f"Trial: {part} (Empty)"
 
-        # Scatter
+        #generate base figures
+        #scatter
         scatter_fig = px.scatter(
             df, x=x_col, y=y_col, color=color_col,
             hover_data=['footstep_index', 'id'],
@@ -76,9 +81,9 @@ def update_views(part, shoe, speed, x_col, y_col, rug_col, color_col):
             title=f"2D Feature Analysis: {x_col} vs {y_col}"
         )
         scatter_fig.update_layout(clickmode='event+select', margin=dict(l=20, r=20, t=30, b=20))
-        scatter_fig.update_traces(marker_size=10)
+        scatter_fig.update_traces(marker_size=10, unselected=dict(marker=dict(opacity=0.3))) # Fade others if needed
 
-        # Rug
+        #rug
         rug_fig = px.strip(
             df, x=rug_col, color=color_col, stripmode='overlay',
             hover_data=['footstep_index', 'id'],
@@ -88,13 +93,52 @@ def update_views(part, shoe, speed, x_col, y_col, rug_col, color_col):
         rug_fig.update_layout(clickmode='event+select', margin=dict(l=20, r=20, t=30, b=20), yaxis={'visible': False}, height=150)
         rug_fig.update_traces(marker_size=8, jitter=0.5)
 
-        # Grid
+        # 5. apply highlighting (for extensibility)
+        if selected_step_id:
+            # Check if selected step exists in this trial (important when switching trials)
+            selected_row = df[df['id'] == selected_step_id]
+            
+            if not selected_row.empty:
+                # Highlight Scatter
+                scatter_fig.add_trace(go.Scatter(
+                    x=selected_row[x_col], 
+                    y=selected_row[y_col],
+                    mode='markers',
+                    marker=dict(color='red', size=15, line=dict(width=2, color='black')),
+                    name='Selected',
+                    hoverinfo='skip'
+                ))
+                
+                # Highlight Rug
+                rug_fig.add_trace(go.Scatter(
+                    x=selected_row[rug_col], 
+                    y=[0] * len(selected_row), # Rug plots are essentially y=0
+                    mode='markers',
+                    marker=dict(color='red', size=12, symbol='line-ns-open', line=dict(width=3)),
+                    name='Selected',
+                    hoverinfo='skip'
+                ))
+
+        # 6. Generate Grid (with Dynamic Styling)
         grid_items = []
         for step in steps:
+            # Dynamic Style Logic
+            is_selected = (step.id == selected_step_id)
+            border_style = '3px solid #FF0000' if is_selected else '1px solid #eee'
+            bg_color = '#fff0f0' if is_selected else 'white'
+            
             item = html.Div(
                 id={'type': 'grid-card', 'index': step.id},
                 n_clicks=0,
-                style={'cursor': 'pointer', 'textAlign': 'center', 'border': '1px solid #eee', 'borderRadius': '5px', 'padding': '5px'},
+                style={
+                    'cursor': 'pointer', 
+                    'textAlign': 'center', 
+                    'border': border_style, 
+                    'backgroundColor': bg_color,
+                    'borderRadius': '5px', 
+                    'padding': '5px',
+                    'transition': '0.2s' # Smooth transition
+                },
                 children=[
                     html.Img(src=f"/assets/footsteps/step_{step.id}.png", style={'width': '100%'}),
                     html.Div(f"Step {step.footstep_index}", style={'fontSize': '0.8em', 'color': '#555'})
@@ -105,15 +149,16 @@ def update_views(part, shoe, speed, x_col, y_col, rug_col, color_col):
         return scatter_fig, rug_fig, grid_items, f"Trial: {part}-{shoe}-{speed} ({len(steps)} steps)"
 
 
-# B. Unified selection
+#unified selection
 @app.callback(
     Output('selected-step-store', 'data'),
     [Input('main-scatter', 'clickData'),
      Input('rug-plot', 'clickData'),
+     Input('walkway-plot', 'clickData'),
      Input({'type': 'grid-card', 'index': ALL}, 'n_clicks')],
     prevent_initial_call=True
 )
-def handle_selection(scatter_click, rug_click, grid_clicks):
+def handle_selection(scatter_click, rug_click, walkway_click, grid_clicks):
     trigger_id = ctx.triggered_id
     if not trigger_id: return no_update
 
@@ -123,13 +168,17 @@ def handle_selection(scatter_click, rug_click, grid_clicks):
     if trigger_id == 'rug-plot' and rug_click:
         return rug_click['points'][0]['customdata'][0]
 
+    #allows for selection on walkway plot
+    if trigger_id == 'walkway-plot' and walkway_click:
+        return walkway_click['points'][0]['customdata'][0]
+
     if isinstance(trigger_id, dict) and trigger_id.get('type') == 'grid-card':
         return trigger_id['index']
     
     return no_update
 
 
-# C. Physics rendering
+# C. Render physics module
 @app.callback(
     [Output('grf-plot', 'figure'),
      Output('cop-plot', 'figure')],
@@ -158,6 +207,76 @@ def render_physics(footstep_id):
 
     return fig_grf, fig_cop
 
+#update walkway plot
+@app.callback(
+    Output('walkway-plot', 'figure'),
+    [Input('part-dd', 'value'),
+     Input('shoe-dd', 'value'),
+     Input('speed-dd', 'value'),
+     Input('selected-step-store', 'data'),
+     Input('pass-selector', 'value')]
+)
+def update_walkway(part, shoe, speed, selected_step_id, visible_passes):
+    # safety check, visible_passes can be None
+    if visible_passes is None: visible_passes = []
+
+    if not (part and shoe and speed):
+        return go.Figure()
+
+    with Session(engine) as session:
+        #grab trial
+        stmt = select(Trial).where(Trial.participant_id == part, Trial.footwear == shoe, Trial.speed == speed)
+        trial = session.scalar(stmt)
+        
+        if not trial:
+            return go.Figure()
+
+        #grab steps
+        steps = session.scalars(
+            select(Footstep).where(Footstep.trial_id == trial.id).order_by(Footstep.footstep_index)
+        ).all()
+
+        filtered_steps = [s for s in steps if s.pass_id in visible_passes]
+
+        return create_walkway_plot(filtered_steps, selected_step_id)
+
+@app.callback(
+    [Output('pass-selector', 'options'),
+     Output('pass-selector', 'value')],
+    [Input('part-dd', 'value'),
+     Input('shoe-dd', 'value'),
+     Input('speed-dd', 'value'),
+     Input('selected-step-store', 'data')] # Listens to global click
+)
+def manage_pass_selector(part, shoe, speed, selected_step_id):
+    trigger = ctx.triggered_id
+    
+    # CASE 1: User Clicked a Step (Drill-Down Logic)
+    if trigger == 'selected-step-store' and selected_step_id:
+        with Session(engine) as session:
+            # Find which pass this step belongs to
+            step = session.get(Footstep, selected_step_id)
+            if step and step.pass_id is not None:
+                # REQUIREMENT: "Only pass 2 footsteps are shown"
+                return no_update, [step.pass_id]
+        return no_update, no_update
+
+    #new trial is loaded (reset logic)
+    if part and shoe and speed:
+        with Session(engine) as session:
+            stmt = select(Trial).where(Trial.participant_id == part, Trial.footwear == shoe, Trial.speed == speed)
+            trial = session.scalar(stmt)
+            
+            if trial:
+                # Get distinct pass ids for this trial
+                steps = session.scalars(select(Footstep).where(Footstep.trial_id == trial.id)).all()
+                unique_passes = sorted(list(set([s.pass_id for s in steps if s.pass_id is not None])))
+                
+                options = [{'label': f"Pass {p}", 'value': p} for p in unique_passes]
+                
+                return options, unique_passes
+
+    return [], []
 
 if __name__ == '__main__':
     app.run(debug=True, port=8000)
