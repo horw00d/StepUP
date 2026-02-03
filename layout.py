@@ -38,10 +38,11 @@ def create_layout():
             ])
         ]),
 
-        # Tabs (Scatter/Rug & Library)
+        # Top Section: Feature Analysis & Library (Tabs)
         dcc.Tabs(id="view-tabs", value='tab-feature', children=[
+            # TAB 1: SCATTER & RUG
             dcc.Tab(label='Feature Analysis', value='tab-feature', children=[
-                html.Div(style={'display': 'flex', 'gap': '20px', 'height': '550px', 'padding': '20px'}, children=[
+                html.Div(style={'display': 'flex', 'gap': '20px', 'height': '450px', 'padding': '20px'}, children=[
                     # Left col: graphs
                     html.Div(style={'flex': '3', 'display': 'flex', 'flexDirection': 'column', 'gap': '15px'}, children=[
                         html.Div(style={'flex': '2', 'border': '1px solid #ccc', 'borderRadius': '5px', 'padding': '10px'}, children=[
@@ -73,23 +74,56 @@ def create_layout():
                     ])
                 ])
             ]),
+            
+            # TAB 2: IMAGE LIBRARY
             dcc.Tab(label='Footstep Library', value='tab-library', children=[
-                html.Div(style={'height': '550px', 'overflowY': 'auto', 'padding': '20px'}, children=[
+                html.Div(style={'height': '450px', 'overflowY': 'auto', 'padding': '20px'}, children=[
                     html.Div(id='image-grid', style={
                         'display': 'grid',
                         'gridTemplateColumns': 'repeat(auto-fill, minmax(140px, 1fr))',
                         'gap': '20px'
                     })
                 ])
-            ])
+            ]),
         ]),
 
-        # Bottom graphs (GRF & COP)
-        html.Div(style={'flex': '1.5', 'marginTop': '10px', 'borderTop': '2px solid #eee', 'paddingTop': '10px'}, children=[
-            html.H4("Deep Dive: Single Step Physics", style={'marginBottom': '10px'}),
-            html.Div(style={'display': 'flex', 'gap': '20px', 'height': '300px'}, children=[
-                html.Div(style={'flex': '1', 'border': '1px solid #eee'}, children=[dcc.Graph(id='grf-plot', style={'height': '100%'})]),
-                html.Div(style={'flex': '1', 'border': '1px solid #eee'}, children=[dcc.Graph(id='cop-plot', style={'height': '100%'})])
+        # Bottom Section: Consolidated Deep Dive (Physics + Spatial)
+        html.Div(style={'flex': '1', 'marginTop': '10px', 'borderTop': '2px solid #ddd', 'paddingTop': '10px', 'display': 'flex', 'gap': '20px', 'minHeight': '600px'}, children=[
+            
+            # LEFT COLUMN: Physics (Stacked Vertically)
+            html.Div(style={'flex': '1', 'display': 'flex', 'flexDirection': 'column', 'gap': '10px'}, children=[
+                html.H4("Deep Dive: Physics", style={'marginBottom': '5px'}),
+                
+                # GRF Plot (Top Half)
+                html.Div(style={'flex': '1', 'border': '1px solid #eee', 'borderRadius': '5px', 'padding': '5px'}, children=[
+                    dcc.Graph(id='grf-plot', style={'height': '100%'})
+                ]),
+                
+                # COP Plot (Bottom Half)
+                html.Div(style={'flex': '1', 'border': '1px solid #eee', 'borderRadius': '5px', 'padding': '5px'}, children=[
+                    dcc.Graph(id='cop-plot', style={'height': '100%'})
+                ])
+            ]),
+
+            # RIGHT COLUMN: Walkway (Spatial Map)
+            html.Div(style={'flex': '1', 'display': 'flex', 'flexDirection': 'column', 'gap': '10px'}, children=[
+                html.H4("Spatial Footstep Map", style={'marginBottom': '5px'}),
+                
+                # Pass Selector Controls
+                html.Div(children=[
+                    html.Label("Filter by Pass:", style={'fontWeight': 'bold', 'display': 'inline-block', 'marginRight': '10px'}),
+                    dcc.Dropdown(
+                        id='pass-selector',
+                        multi=True,
+                        placeholder="Select passes to view...",
+                        style={'flex': '1'}
+                    )
+                ]),
+
+                # The Walkway Plot
+                html.Div(style={'flex': '1', 'border': '1px solid #ccc', 'borderRadius': '5px', 'padding': '10px'}, children=[
+                    dcc.Graph(id='walkway-plot', style={'height': '100%'})
+                ])
             ])
         ])
     ])

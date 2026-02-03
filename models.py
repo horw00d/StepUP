@@ -52,6 +52,11 @@ class Footstep(Base):
     foot_width: Mapped[float] = mapped_column(Float, nullable=True)
     rotation_angle: Mapped[float] = mapped_column(Float, nullable=True)
 
+    box_xmin: Mapped[int] = mapped_column(Integer, nullable=True)
+    box_xmax: Mapped[int] = mapped_column(Integer, nullable=True)
+    box_ymin: Mapped[int] = mapped_column(Integer, nullable=True)
+    box_ymax: Mapped[int] = mapped_column(Integer, nullable=True)
+
     r_score: Mapped[float] = mapped_column(Float)
     mean_grf: Mapped[float] = mapped_column(Float)
     
