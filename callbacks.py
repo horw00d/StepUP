@@ -194,8 +194,6 @@ def register_callbacks(app):
 
         return graphics.create_walkway_plot(filtered_steps_list, selected_step_id)
 
-
-    # E. MANAGE PASS SELECTOR (Updated to use 'filter-pass')
     # E. MANAGE PASS SELECTOR
     @app.callback(
         [Output('filter-pass', 'options'),
@@ -212,3 +210,19 @@ def register_callbacks(app):
             return options, [] # Default to empty (All)
 
         return [], []
+
+    # F. UPDATE DETAIL VIEWS (Heatmap & Histogram)
+    @app.callback(
+        [Output('heatmap-plot', 'figure'),
+         Output('histogram-plot', 'figure')],
+        Input('selected-step-store', 'data')
+    )
+    def update_step_details(step_id):
+        if not step_id:
+            return graphics.create_heatmap_and_histogram(None, None)
+            
+        # 1. Fetch the matrix (Instant load from .npy)
+        matrix = data.fetch_footstep_matrix(step_id)
+        
+        # 2. Generate Plots
+        return graphics.create_heatmap_and_histogram(matrix, step_id)

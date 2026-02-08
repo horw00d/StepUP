@@ -88,7 +88,7 @@ def create_layout():
             ]),
         ]),
 
-        # Top Section: Feature Analysis & Library (Tabs)
+        # 1st Section: Feature Analysis & Library (Tabs)
         dcc.Tabs(id="view-tabs", value='tab-feature', children=[
             # TAB 1: SCATTER & RUG
             dcc.Tab(label='Feature Analysis', value='tab-feature', children=[
@@ -139,7 +139,7 @@ def create_layout():
             ]),
         ]),
 
-        # Bottom Section: Consolidated (Physics + Spatial)
+        # 2nd Section: Consolidated (Physics + Spatial)
         html.Div(style={'flex': '1', 'marginTop': '10px', 'borderTop': '2px solid #ddd', 'paddingTop': '10px', 'display': 'flex', 'gap': '20px', 'minHeight': '600px'}, children=[
             
             # LEFT COLUMN: Physics (Stacked Vertically)
@@ -162,7 +162,7 @@ def create_layout():
                 html.Div(style={'display': 'flex', 'justifyContent': 'space-between', 'alignItems': 'center'}, children=[
                     html.H4("Spatial Footstep Map", style={'marginBottom': '5px'}),
                     
-                    # --- NEW TOGGLE ---
+                    #new toggle to show all passes or isolate the clicked pass
                     dcc.Checklist(
                         id='isolate-pass-check',
                         options=[{'label': ' Isolate Pass on Click', 'value': 'isolate'}],
@@ -175,6 +175,25 @@ def create_layout():
                 html.Div(style={'flex': '1', 'border': '1px solid #ccc', 'borderRadius': '5px', 'padding': '10px'}, children=[
                     dcc.Graph(id='walkway-plot', style={'height': '100%'})
                 ])
+            ])
+        ]),
+
+        # 3rd Section: Heatmap + Histogram for Selected Step
+        html.Div(style={'marginTop': '20px', 'paddingTop': '20px', 'borderTop': '2px solid #ddd'}, children=[
+            html.H3("Pressure Detail", style={'marginBottom': '10px'}),
+            
+            html.Div(style={'display': 'flex', 'gap': '20px'}, children=[
+                # Heatmap
+                html.Div(style={'flex': '1', 'backgroundColor': 'white', 'padding': '15px', 'borderRadius': '5px', 'boxShadow': '0 2px 4px rgba(0,0,0,0.1)'}, 
+                children=[
+                    dcc.Graph(id='heatmap-plot', style={'height': '400px'})
+                ]),
+
+                # Histogram
+                html.Div(style={'flex': '1', 'backgroundColor': 'white', 'padding': '15px', 'borderRadius': '5px', 'boxShadow': '0 2px 4px rgba(0,0,0,0.1)'}, 
+                children=[
+                    dcc.Graph(id='histogram-plot', style={'height': '400px'})
+                ]),
             ])
         ])
     ])

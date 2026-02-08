@@ -325,3 +325,73 @@ def create_physics_plots(metrics):
     fig_cop.update_layout(title="COP Trajectory", xaxis_title="Mediolateral (cm)", yaxis_title="Anteroposterior (cm)", yaxis=dict(scaleanchor="x", scaleratio=1), margin=dict(l=40, r=40, t=40, b=40))
 
     return fig_grf, fig_cop
+
+def create_heatmap_and_histogram(matrix, step_id):
+    """
+    Generates a synchronized Heatmap and Histogram for a single step.
+    """
+    if matrix is None:
+        empty = go.Layout(title="No Data", xaxis={'visible': False}, yaxis={'visible': False})
+        return go.Figure(layout=empty), go.Figure(layout=empty)
+
+    #configuration for both plots
+    # Standard gait analysis usually caps visual range around 150-300 kPa
+    # We use a fixed range so colors are consistent across all steps
+    Z_MIN, Z_MAX = 0, 300 
+    THRESHOLD = 10  # kPa noise floor
+
+    #1 HEATMAP
+    heatmap_fig = go.Figure(data=go.Heatmap(
+        z=matrix,
+        colorscale='Jet',
+        zmin=Z_MIN, zmax=Z_MAX,
+        hovertemplate="X: %{x}<br>Y: %{y}<br>Pressure: %{z:.1f} kPa<extra></extra>",
+    ))
+    
+    # add the 10kPa contour line
+    heatmap_fig.add_trace(go.Contour(
+        z=matrix,
+        contours=dict(
+            type='constraint',
+            operation='>=',
+            value=THRESHOLD,
+            coloring='none', # Don't fill, just draw line
+        ),
+        line=dict(color='white', width=2, dash='solid'),
+        showlegend=False,
+        hoverinfo='skip'
+    ))
+
+    heatmap_fig.update_layout(
+        title=f"Pressure Map (Step {step_id})",
+        margin=dict(l=20, r=20, t=40, b=20),
+        xaxis=dict(visible=False), 
+        yaxis=dict(visible=False, scaleanchor='x'), # Square aspect ratio
+        plot_bgcolor='black'
+    )
+
+    #2 HISTOGRAM
+    # Flatten array and filter out background noise (< 10 kPa)
+    flat_data = matrix.flatten()
+    active_pixels = flat_data[flat_data > THRESHOLD]
+
+    hist_fig = go.Figure(data=go.Histogram(
+        x=active_pixels,
+        xbins=dict(start=THRESHOLD, end=Z_MAX, size=5), # 5 kPa bins
+        marker=dict(
+            color=active_pixels, 
+            cmin=Z_MIN, cmax=Z_MAX, # sync colors with heatmap
+            colorscale='Jet'
+        )
+    ))
+
+    hist_fig.update_layout(
+        title=f"Pressure Distribution (> {THRESHOLD} kPa)",
+        xaxis_title="Pressure (kPa)",
+        yaxis_title="Count (Sensors)",
+        margin=dict(l=40, r=20, t=40, b=40),
+        showlegend=False,
+        bargap=0.05
+    )
+
+    return heatmap_fig, hist_fig

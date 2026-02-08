@@ -7,75 +7,71 @@ from models import Trial, Footstep
 
 # SETUP
 ASSETS_DIR = "./assets/footsteps"
+DATA_DIR = "./assets/data"
 DATABASE_URL = "sqlite:///stepup.db"
+
 os.makedirs(ASSETS_DIR, exist_ok=True)
+os.makedirs(DATA_DIR, exist_ok=True)
 
 def generate_assets():
     engine = create_engine(DATABASE_URL)
     session = Session(engine)
 
-    # Fetch all trials
     stmt = select(Trial).where(Trial.file_path.is_not(None))
     trials = session.scalars(stmt).all()
     
-    print(f"{len(trials)} to process")
+    print(f"Processing {len(trials)} trials...")
 
     for trial in trials:
-        if not os.path.exists(trial.file_path):
-            continue
+        if not os.path.exists(trial.file_path): continue
 
         try:
-            # Load the NPZ file context manager style to ensure it closes
             with np.load(trial.file_path) as data:
-                
-                #check file format
                 keys = data.files
                 is_batch_format = 'arr_0' in keys
                 
-                # if batch format, load the big tensor once to save memory
                 if is_batch_format:
                     footsteps_tensor = data['arr_0']
                 
-                #fetch DB records for trial
                 db_steps = session.scalars(
                     select(Footstep).where(Footstep.trial_id == trial.id)
                 ).all()
 
                 for step in db_steps:
                     idx = step.footstep_index
+                    step_data = None
                     
                     try:
-                        step_data = None
-                        
-                        #format A: single large tensor
                         if is_batch_format:
                             if idx < len(footsteps_tensor):
                                 step_data = footsteps_tensor[idx]
-                        
-                        #format B: Individual keys '0', '1', '2'
                         else:
-                            str_idx = str(idx)
-                            if str_idx in data:
-                                step_data = data[str_idx]
+                            if str(idx) in data:
+                                step_data = data[str(idx)]
 
-                        #found data, save the image
                         if step_data is not None:
-                            #collapse time (axis 0) to get Peak Pressure
+                            #1 collapse to Peak Pressure (Max over time)
                             peak_pressure = np.max(step_data, axis=0)
                             
-                            # Save to assets
-                            output_path = os.path.join(ASSETS_DIR, f"step_{step.id}.png")
-                            plt.imsave(output_path, peak_pressure, cmap='jet', origin='lower')
+                            #2 orientation fix
+                            aligned_matrix = np.flipud(peak_pressure)
+
+                            #3 save PNG (Visual Asset)
+                            img_path = os.path.join(ASSETS_DIR, f"step_{step.id}.png")
+                            plt.imsave(img_path, peak_pressure, cmap='jet', origin='upper')
+
+                            #save RAW DATA (Analytical Asset)
+                            npy_path = os.path.join(DATA_DIR, f"step_{step.id}.npy")
+                            np.save(npy_path, aligned_matrix)
                     
                     except Exception as step_error:
-                        print(f"Error processing step {step.id} in trial {trial.id}: {step_error}")
+                        print(f"Error step {step.id}: {step_error}")
                         continue
                         
             print(f"Processed Trial {trial.id}")
             
         except Exception as e:
-            print(f"CRITICAL ERROR loading {trial.file_path}: {e}")
-            continue
+            print(f"Error Trial {trial.id}: {e}")
 
 if __name__ == "__main__":
     generate_assets()

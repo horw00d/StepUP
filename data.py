@@ -1,5 +1,7 @@
-from sqlalchemy import select, distinct
+import os
 import pandas as pd
+import numpy as np
+from sqlalchemy import select, distinct
 from types import SimpleNamespace
 from database import Session, engine
 from models import Trial, Footstep, Participant
@@ -89,6 +91,22 @@ def fetch_step_by_id(step_id):
     """Fetches a single footstep by ID."""
     with Session(engine) as session:
         return session.get(Footstep, step_id)
+
+def fetch_footstep_matrix(step_id):
+    """
+    Loads the pre-sharded raw pressure matrix for a specific step.
+    Returns: numpy array or None
+    """
+    try:
+        # construct path to sharded data file
+        file_path = f"./assets/data/step_{step_id}.npy"
+        
+        if os.path.exists(file_path):
+            return np.load(file_path)
+        return None
+    except Exception as e:
+        print(f"Error loading matrix for step {step_id}: {e}")
+        return None
 
 def fetch_pass_options(part, shoe, speed):
     """Fetches unique Pass IDs."""
