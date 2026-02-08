@@ -1,4 +1,5 @@
 from dash import Input, Output, ctx, ALL, no_update, html
+from profiler import profile_callback
 import plotly.graph_objects as go
 import data
 import graphics
@@ -21,11 +22,13 @@ def register_callbacks(app):
          Input('color-dd', 'value'),
          Input('selected-step-store', 'data')]
     )
+    #@profile_callback
     def update_views(part, shoe, speed, x_col, y_col, rug_col, color_col, selected_step_id):
+
         if not (part and shoe and speed):
             return no_update, no_update, [], ""
 
-        #1 use data module
+        # 1. Fetch Data
         trial, steps, df = data.fetch_trial_data(part, shoe, speed)
         
         if not trial:
@@ -36,8 +39,7 @@ def register_callbacks(app):
         scatter_fig = graphics.create_scatter_plot(df, x_col, y_col, color_col, selected_step_id)
         rug_fig = graphics.create_rug_plot(df, rug_col, color_col, selected_step_id)
 
-        # 3. Grid Generation (This stays here as it creates HTML components, not Plots)
-        # Note: You could move this to graphics.py too, but it requires dash.html imports there.
+        # 3. grid generation
         grid_items = []
         for step in steps:
             is_selected = (step.id == selected_step_id)
@@ -66,6 +68,7 @@ def register_callbacks(app):
         Input({'type': 'grid-card', 'index': ALL}, 'n_clicks')],
         prevent_initial_call=True
     )
+    #@profile_callback
     def handle_selection(scatter_click, rug_click, walkway_click, grid_clicks):
         trigger_id = ctx.triggered_id
         if not trigger_id: return no_update
@@ -91,6 +94,7 @@ def register_callbacks(app):
         Output('cop-plot', 'figure')],
         Input('selected-step-store', 'data')
     )
+    #@profile_callback
     def render_physics(footstep_id):
         # 1. Check ID
         if not footstep_id: 
@@ -103,7 +107,7 @@ def register_callbacks(app):
         return graphics.create_physics_plots(metrics)
 
 
-    # D. UPDATE WALKWAY PLOT (Fixed DB calls)
+    # D. UPDATE WALKWAY PLOT
     @app.callback(
         Output('walkway-plot', 'figure'),
         [Input('part-dd', 'value'),
@@ -112,6 +116,7 @@ def register_callbacks(app):
         Input('selected-step-store', 'data'),
         Input('pass-selector', 'value')]
     )
+    #@profile_callback
     def update_walkway(part, shoe, speed, selected_step_id, visible_passes):
         if visible_passes is None: visible_passes = []
 
@@ -141,6 +146,7 @@ def register_callbacks(app):
         Input('speed-dd', 'value'),
         Input('selected-step-store', 'data')] 
     )
+    #@profile_callback
     def manage_pass_selector(part, shoe, speed, selected_step_id):
         trigger = ctx.triggered_id
         
