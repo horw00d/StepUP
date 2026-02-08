@@ -38,6 +38,56 @@ def create_layout():
             ])
         ]),
 
+        html.Div(style={'backgroundColor': '#f1f1f1', 'padding': '15px', 'borderRadius': '5px', 'marginBottom': '20px', 'display': 'flex', 'gap': '30px', 'alignItems': 'flex-end'}, children=[
+            
+            # Side Filter
+            html.Div([
+                html.Label("Side:", style={'fontWeight': 'bold', 'fontSize': '0.9em'}),
+                dcc.Checklist(
+                    id='filter-side',
+                    options=[{'label': 'Left', 'value': 'Left'}, {'label': 'Right', 'value': 'Right'}],
+                    value=['Left', 'Right'], # Default All
+                    inline=True,
+                    inputStyle={"margin-right": "5px", "margin-left": "10px"}
+                )
+            ]),
+
+            # Outlier Filter
+            html.Div([
+                html.Label("Status:", style={'fontWeight': 'bold', 'fontSize': '0.9em'}),
+                dcc.Checklist(
+                    id='filter-outlier',
+                    options=[{'label': 'Normal', 'value': 'Normal'}, {'label': 'Outlier', 'value': 'Outlier'}],
+                    value=['Normal', 'Outlier'], # Default All
+                    inline=True,
+                    inputStyle={"margin-right": "5px", "margin-left": "10px"}
+                )
+            ]),
+
+            # Tile Filter (1-12)
+            html.Div(style={'width': '200px'}, children=[
+                html.Label("Filter by Tile:", style={'fontWeight': 'bold', 'fontSize': '0.9em'}),
+                dcc.Dropdown(
+                    id='filter-tile',
+                    options=[{'label': f"Tile {i}", 'value': i} for i in range(1, 13)],
+                    multi=True,
+                    placeholder="All Tiles",
+                    style={'fontSize': '0.9em'}
+                )
+            ]),
+
+            # Pass Filter (Moved from Spatial Tab to here for Global control)
+            html.Div(style={'width': '200px'}, children=[
+                html.Label("Filter by Pass:", style={'fontWeight': 'bold', 'fontSize': '0.9em'}),
+                dcc.Dropdown(
+                    id='filter-pass', # Renamed from pass-selector
+                    multi=True,
+                    placeholder="All Passes",
+                    style={'fontSize': '0.9em'}
+                )
+            ]),
+        ]),
+
         # Top Section: Feature Analysis & Library (Tabs)
         dcc.Tabs(id="view-tabs", value='tab-feature', children=[
             # TAB 1: SCATTER & RUG
@@ -69,7 +119,9 @@ def create_layout():
                         html.Label("Color By:"),
                         dcc.Dropdown(id='color-dd', options=[
                             {'label': 'Side (L/R)', 'value': 'side'},
-                            {'label': 'Outlier Status', 'value': 'is_outlier'}
+                            {'label': 'Outlier Status', 'value': 'is_outlier'},
+                            {'label': 'Tile ID', 'value': 'tile_id'},
+                            {'label': 'Pass ID', 'value': 'pass_id'}
                         ], value='side', clearable=False),
                     ])
                 ])
@@ -87,12 +139,12 @@ def create_layout():
             ]),
         ]),
 
-        # Bottom Section: Consolidated Deep Dive (Physics + Spatial)
+        # Bottom Section: Consolidated (Physics + Spatial)
         html.Div(style={'flex': '1', 'marginTop': '10px', 'borderTop': '2px solid #ddd', 'paddingTop': '10px', 'display': 'flex', 'gap': '20px', 'minHeight': '600px'}, children=[
             
             # LEFT COLUMN: Physics (Stacked Vertically)
             html.Div(style={'flex': '1', 'display': 'flex', 'flexDirection': 'column', 'gap': '10px'}, children=[
-                html.H4("Deep Dive: Physics", style={'marginBottom': '5px'}),
+                html.H4("Physics", style={'marginBottom': '5px'}),
                 
                 # GRF Plot (Top Half)
                 html.Div(style={'flex': '1', 'border': '1px solid #eee', 'borderRadius': '5px', 'padding': '5px'}, children=[
@@ -107,19 +159,18 @@ def create_layout():
 
             # RIGHT COLUMN: Walkway (Spatial Map)
             html.Div(style={'flex': '1', 'display': 'flex', 'flexDirection': 'column', 'gap': '10px'}, children=[
-                html.H4("Spatial Footstep Map", style={'marginBottom': '5px'}),
-                
-                # Pass Selector Controls
-                html.Div(children=[
-                    html.Label("Filter by Pass:", style={'fontWeight': 'bold', 'display': 'inline-block', 'marginRight': '10px'}),
-                    dcc.Dropdown(
-                        id='pass-selector',
-                        multi=True,
-                        placeholder="Select passes to view...",
-                        style={'flex': '1'}
+                html.Div(style={'display': 'flex', 'justifyContent': 'space-between', 'alignItems': 'center'}, children=[
+                    html.H4("Spatial Footstep Map", style={'marginBottom': '5px'}),
+                    
+                    # --- NEW TOGGLE ---
+                    dcc.Checklist(
+                        id='isolate-pass-check',
+                        options=[{'label': ' Isolate Pass on Click', 'value': 'isolate'}],
+                        value=['isolate'], # Default to ON
+                        inputStyle={"margin-right": "5px"}
                     )
                 ]),
-
+                
                 # The Walkway Plot
                 html.Div(style={'flex': '1', 'border': '1px solid #ccc', 'borderRadius': '5px', 'padding': '10px'}, children=[
                     dcc.Graph(id='walkway-plot', style={'height': '100%'})
