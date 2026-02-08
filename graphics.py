@@ -166,9 +166,15 @@ def create_walkway_plot(footsteps, selected_step_id=None):
 
         fig.add_trace(go.Scatter(
             x=[(x0+x1)/2], y=[(y0+y1)/2],
-            mode='markers', marker=dict(opacity=0),
-            customdata=[[step.id, step.pass_id, step.footstep_index]], 
-            hovertemplate="<b>Step %{customdata[2]}</b><br>Pass: %{customdata[1]}<br>ID: %{customdata[0]}<extra></extra>",
+            mode='markers', 
+            marker=dict(opacity=0),
+            customdata=[[step.id, step.tile_id, step.pass_id, step.footstep_index]], 
+            hovertemplate=(
+                "<b>Step %{customdata[3]}</b><br>"
+                "TileID: %{customdata[1]}<br>"
+                "Pass: %{customdata[2]}<br>"
+                "ID: %{customdata[0]}<extra></extra>"
+            ),
             showlegend=False
         ))
 
@@ -191,25 +197,28 @@ def create_scatter_plot(df, x_col, y_col, color_col, selected_step_id=None):
         fig.update_layout(title="No Data")
         return fig
     
-    # 1. Group by Color Column (Manual Legend Generation)
-    # This replicates px.scatter's color grouping but is instant
+    # 1. Group by Color Column
     groups = df.groupby(color_col)
     
     for name, group in groups:
-        # Determine specific color if in our map, else let Plotly pick
-        marker_color = COLOR_MAP.get(name, None)
+        # check if there is a preset color (e.g., Left/Right), otherwise let Plotly cycle defaults
+        preset_color = COLOR_MAP.get(name, None)
+        
+        marker_settings = dict(size=10, opacity=0.7)
+        if preset_color:
+            marker_settings['color'] = preset_color
         
         fig.add_trace(go.Scatter(
             x=group[x_col],
             y=group[y_col],
             mode='markers',
             name=str(name),
-            marker=dict(size=10, opacity=0.7, color=marker_color),
+            marker=marker_settings,
             customdata=group[['id', 'footstep_index']].values,
             hovertemplate=f"{x_col}: %{{x}}<br>{y_col}: %{{y}}<br>Step: %{{customdata[1]}}<extra></extra>"
         ))
 
-    # 2. Highlight Selection
+    #2 highlight selection
     if selected_step_id:
         row = df[df['id'] == selected_step_id]
         if not row.empty:
@@ -219,11 +228,25 @@ def create_scatter_plot(df, x_col, y_col, color_col, selected_step_id=None):
                 name='Selected', hoverinfo='skip'
             ))
 
+    # if > 5 categories (e.g., Pass ID), move legend to the right to prevent overlap.
+    if len(groups) > 5:
+        legend_config = dict(
+            orientation="v",
+            yanchor="top", y=1,
+            xanchor="left", x=1.02 # place cleanly on the right
+        )
+    else:
+        legend_config = dict(
+            orientation="h",
+            yanchor="bottom", y=1.02,
+            xanchor="right", x=1
+        )
+
     fig.update_layout(
         title=f"2D Feature Analysis: {x_col} vs {y_col}",
         clickmode='event+select',
         margin=dict(l=20, r=20, t=30, b=20),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        legend=legend_config
     )
     return fig
 

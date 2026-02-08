@@ -1,13 +1,41 @@
-from dash import Input, Output, ctx, ALL, no_update, html
-from profiler import profile_callback
+from dash import Input, Output, ctx, ALL, no_update
+from dash import html # Imported here for grid generation
 import plotly.graph_objects as go
+import pandas as pd
 import data
 import graphics
 import physics 
 
+# --- HELPER FUNCTION ---
+def filter_dataframe(df, sides, outliers, tiles, passes):
+    """
+    Common logic to filter the dataframe based on UI inputs.
+    Returns the filtered DataFrame.
+    """
+    if df.empty: return df
+    
+    # 1. Filter Side
+    if sides:
+        df = df[df['side'].isin(sides)]
+        
+    # 2. Filter Outlier Status
+    if outliers:
+        df = df[df['is_outlier'].isin(outliers)]
+        
+    # 3. Filter Tile ID (If selected)
+    if tiles:
+        # tile_id is an integer in the DF, filters are likely ints from the dropdown
+        df = df[df['tile_id'].isin(tiles)]
+        
+    # 4. Filter Pass ID (If selected)
+    if passes:
+        df = df[df['pass_id'].isin(passes)]
+        
+    return df
+
 def register_callbacks(app):
 
-    # A. UPDATE MAIN VIEWS
+    # A. UPDATE MAIN VIEWS (Scatter, Rug, Grid)
     @app.callback(
         [Output('main-scatter', 'figure'),
          Output('rug-plot', 'figure'),
@@ -20,31 +48,51 @@ def register_callbacks(app):
          Input('yaxis-dd', 'value'),
          Input('rug-dd', 'value'),
          Input('color-dd', 'value'),
-         Input('selected-step-store', 'data')]
+         Input('selected-step-store', 'data'),
+         # --- NEW FILTER INPUTS ---
+         Input('filter-side', 'value'),
+         Input('filter-outlier', 'value'),
+         Input('filter-tile', 'value'),
+         Input('filter-pass', 'value')]
     )
-    #@profile_callback
-    def update_views(part, shoe, speed, x_col, y_col, rug_col, color_col, selected_step_id):
-
+    def update_views(part, shoe, speed, x_col, y_col, rug_col, color_col, selected_step_id, 
+                     sides, outliers, tiles, passes):
+        
         if not (part and shoe and speed):
             return no_update, no_update, [], ""
 
-        # 1. Fetch Data
+        # 1. Fetch Data (Optimized)
         trial, steps, df = data.fetch_trial_data(part, shoe, speed)
         
         if not trial:
+            # Return empty states if no trial found
             return graphics.create_scatter_plot(pd.DataFrame(), "","", ""), \
                    graphics.create_rug_plot(pd.DataFrame(), "", ""), [], "No Data"
 
-        #2 use graphics module
-        scatter_fig = graphics.create_scatter_plot(df, x_col, y_col, color_col, selected_step_id)
-        rug_fig = graphics.create_rug_plot(df, rug_col, color_col, selected_step_id)
+        # 2. Apply Unified Filters
+        df_filtered = filter_dataframe(df, sides, outliers, tiles, passes)
 
-        # 3. grid generation
+        # 3. Sync the 'steps' list for the Grid
+        # We only want to show steps that exist in the filtered DataFrame
+        if not df_filtered.empty:
+            valid_ids = set(df_filtered['id'])
+            filtered_steps_list = [s for s in steps if s.id in valid_ids]
+        else:
+            filtered_steps_list = []
+
+        # 4. Generate Plots using Filtered Data
+        scatter_fig = graphics.create_scatter_plot(df_filtered, x_col, y_col, color_col, selected_step_id)
+        rug_fig = graphics.create_rug_plot(df_filtered, rug_col, color_col, selected_step_id)
+
+        # 5. Generate Grid (HTML Generation)
+        # Note: We implement Pagination in the next step, for now this renders the filtered set.
+        # Ideally, slicing filtered_steps_list[:20] prevents browser lag if filter is "All"
         grid_items = []
-        for step in steps:
+        for step in filtered_steps_list: 
             is_selected = (step.id == selected_step_id)
             border_style = '3px solid #FF0000' if is_selected else '1px solid #eee'
             bg_color = '#fff0f0' if is_selected else 'white'
+            
             item = html.Div(
                 id={'type': 'grid-card', 'index': step.id},
                 n_clicks=0,
@@ -56,19 +104,18 @@ def register_callbacks(app):
             )
             grid_items.append(item)
 
-        return scatter_fig, rug_fig, grid_items, f"Trial: {part}-{shoe}-{speed}"
+        return scatter_fig, rug_fig, grid_items, f"Trial: {part}-{shoe}-{speed} ({len(filtered_steps_list)} steps)"
 
 
-    # B. UNIFIED SELECTION
+    # B. UNIFIED SELECTION (Unchanged)
     @app.callback(
         Output('selected-step-store', 'data'),
         [Input('main-scatter', 'clickData'),
-        Input('rug-plot', 'clickData'),
-        Input('walkway-plot', 'clickData'),
-        Input({'type': 'grid-card', 'index': ALL}, 'n_clicks')],
+         Input('rug-plot', 'clickData'),
+         Input('walkway-plot', 'clickData'),
+         Input({'type': 'grid-card', 'index': ALL}, 'n_clicks')],
         prevent_initial_call=True
     )
-    #@profile_callback
     def handle_selection(scatter_click, rug_click, walkway_click, grid_clicks):
         trigger_id = ctx.triggered_id
         if not trigger_id: return no_update
@@ -88,79 +135,80 @@ def register_callbacks(app):
         return no_update
 
 
-    # C. RENDER PHYSICS (Fixed to use Graphics Module)
+    # C. RENDER PHYSICS (Unchanged)
     @app.callback(
         [Output('grf-plot', 'figure'),
-        Output('cop-plot', 'figure')],
+         Output('cop-plot', 'figure')],
         Input('selected-step-store', 'data')
     )
-    #@profile_callback
     def render_physics(footstep_id):
-        # 1. Check ID
         if not footstep_id: 
-            return graphics.create_physics_plots(None) # Use graphics to generate empties
+            return graphics.create_physics_plots(None)
 
-        # 2. Get Metrics (Physics Logic)
         metrics = physics.get_footstep_physics(footstep_id)
-        
-        # 3. Get Plots (Graphics Logic)
         return graphics.create_physics_plots(metrics)
 
 
-    # D. UPDATE WALKWAY PLOT
+    # D. UPDATE WALKWAY PLOT (Updated with Filters)
     @app.callback(
         Output('walkway-plot', 'figure'),
         [Input('part-dd', 'value'),
-        Input('shoe-dd', 'value'),
-        Input('speed-dd', 'value'),
-        Input('selected-step-store', 'data'),
-        Input('pass-selector', 'value')]
+         Input('shoe-dd', 'value'),
+         Input('speed-dd', 'value'),
+         Input('selected-step-store', 'data'),
+         Input('filter-side', 'value'),
+         Input('filter-outlier', 'value'),
+         Input('filter-tile', 'value'),
+         Input('filter-pass', 'value'),
+         # --- NEW INPUT ---
+         Input('isolate-pass-check', 'value')]
     )
-    #@profile_callback
-    def update_walkway(part, shoe, speed, selected_step_id, visible_passes):
-        if visible_passes is None: visible_passes = []
-
+    def update_walkway(part, shoe, speed, selected_step_id, sides, outliers, tiles, passes, isolate_mode):
         if not (part and shoe and speed):
             return go.Figure()
 
-        # 1. Use Data Manager to get steps (No SQL here!)
-        trial, steps, _ = data.fetch_trial_data(part, shoe, speed)
+        # 1. Fetch Data
+        trial, steps, df = data.fetch_trial_data(part, shoe, speed)
         
-        if not trial:
-            return go.Figure()
+        if not trial: return go.Figure()
 
-        # 2. Apply Filter Logic (Controller Logic)
-        filtered_steps = [s for s in steps if s.pass_id in visible_passes]
+        # 2. Base Filtering (Global Filters)
+        # If 'passes' is empty, filter_dataframe treats it as "All"
+        df_filtered = filter_dataframe(df, sides, outliers, tiles, passes)
+        
+        # 3. Handle "Isolate Pass" Logic
+        if selected_step_id and ('isolate' in isolate_mode):
+            # If a step is selected AND isolation is on...
+            # We override the global pass filter to show ONLY that step's pass
+            selected_step = next((s for s in steps if s.id == selected_step_id), None)
+            if selected_step and selected_step.pass_id is not None:
+                # Filter the DF further to just this pass
+                df_filtered = df_filtered[df_filtered['pass_id'] == selected_step.pass_id]
 
-        # 3. Call Graphics Module
-        # FIX: Added 'graphics.' prefix
-        return graphics.create_walkway_plot(filtered_steps, selected_step_id)
+        # 4. Get Final Step List
+        if df_filtered.empty:
+             return graphics.create_walkway_plot([], selected_step_id)
+
+        valid_ids = set(df_filtered['id'])
+        filtered_steps_list = [s for s in steps if s.id in valid_ids]
+
+        return graphics.create_walkway_plot(filtered_steps_list, selected_step_id)
 
 
-    # E. MANAGE PASS SELECTOR (Fixed DB calls)
+    # E. MANAGE PASS SELECTOR (Updated to use 'filter-pass')
+    # E. MANAGE PASS SELECTOR
     @app.callback(
-        [Output('pass-selector', 'options'),
-        Output('pass-selector', 'value')],
+        [Output('filter-pass', 'options'),
+         Output('filter-pass', 'value')],
         [Input('part-dd', 'value'),
-        Input('shoe-dd', 'value'),
-        Input('speed-dd', 'value'),
-        Input('selected-step-store', 'data')] 
+         Input('shoe-dd', 'value'),
+         Input('speed-dd', 'value')]
+         # Removed 'selected-step-store' from Inputs!
     )
-    #@profile_callback
-    def manage_pass_selector(part, shoe, speed, selected_step_id):
-        trigger = ctx.triggered_id
-        
-        # CASE 1: Drill-Down (Clicked a step)
-        if trigger == 'selected-step-store' and selected_step_id:
-            # Use Data Manager to get single step
-            step = data.fetch_step_by_id(selected_step_id)
-            if step and step.pass_id is not None:
-                return no_update, [step.pass_id]
-            return no_update, no_update
-
-        # CASE 2: New Trial Loaded
+    def manage_pass_selector(part, shoe, speed):
+        # Only runs when trial changes
         if part and shoe and speed:
-            # Use the new helper in Data Manager
-            return data.fetch_pass_options(part, shoe, speed)
+            options, _ = data.fetch_pass_options(part, shoe, speed)
+            return options, [] # Default to empty (All)
 
         return [], []
