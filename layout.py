@@ -38,54 +38,111 @@ def create_layout():
             ])
         ]),
 
-        html.Div(style={'backgroundColor': '#f1f1f1', 'padding': '15px', 'borderRadius': '5px', 'marginBottom': '20px', 'display': 'flex', 'gap': '30px', 'alignItems': 'flex-end'}, children=[
+        #filter section with advanced query builder
+        html.Div(style={'backgroundColor': '#f1f1f1', 'padding': '15px', 'borderRadius': '5px', 'marginBottom': '20px', 'display': 'flex', 'flexDirection': 'column', 'gap': '15px'}, children=[
             
-            # Side Filter
-            html.Div([
-                html.Label("Side:", style={'fontWeight': 'bold', 'fontSize': '0.9em'}),
-                dcc.Checklist(
-                    id='filter-side',
-                    options=[{'label': 'Left', 'value': 'Left'}, {'label': 'Right', 'value': 'Right'}],
-                    value=['Left', 'Right'], # Default All
-                    inline=True,
-                    inputStyle={"margin-right": "5px", "margin-left": "10px"}
-                )
+            #STANDARD UI FILTERS (Row 1)
+            html.Div(style={'display': 'flex', 'gap': '30px', 'alignItems': 'flex-end'}, children=[
+                # Side Filter
+                html.Div([
+                    html.Label("Side:", style={'fontWeight': 'bold', 'fontSize': '0.9em'}),
+                    dcc.Checklist(
+                        id='filter-side',
+                        options=[{'label': 'Left', 'value': 'Left'}, {'label': 'Right', 'value': 'Right'}],
+                        value=['Left', 'Right'],
+                        inline=True,
+                        inputStyle={"margin-right": "5px", "margin-left": "10px"}
+                    )
+                ]),
+
+                # Outlier Filter
+                html.Div([
+                    html.Label("Status:", style={'fontWeight': 'bold', 'fontSize': '0.9em'}),
+                    dcc.Checklist(
+                        id='filter-outlier',
+                        options=[{'label': 'Normal', 'value': 'Normal'}, {'label': 'Outlier', 'value': 'Outlier'}],
+                        value=['Normal', 'Outlier'],
+                        inline=True,
+                        inputStyle={"margin-right": "5px", "margin-left": "10px"}
+                    )
+                ]),
+
+                # Tile Filter
+                html.Div(style={'width': '200px'}, children=[
+                    html.Label("Filter by Tile:", style={'fontWeight': 'bold', 'fontSize': '0.9em'}),
+                    dcc.Dropdown(
+                        id='filter-tile',
+                        options=[{'label': f"Tile {i}", 'value': i} for i in range(1, 13)],
+                        multi=True,
+                        placeholder="All Tiles",
+                        style={'fontSize': '0.9em'}
+                    )
+                ]),
+
+                # Pass Filter 
+                html.Div(style={'width': '200px'}, children=[
+                    html.Label("Filter by Pass:", style={'fontWeight': 'bold', 'fontSize': '0.9em'}),
+                    dcc.Dropdown(
+                        id='filter-pass',
+                        multi=True,
+                        placeholder="All Passes",
+                        style={'fontSize': '0.9em'}
+                    )
+                ]),
             ]),
 
-            # Outlier Filter
-            html.Div([
-                html.Label("Status:", style={'fontWeight': 'bold', 'fontSize': '0.9em'}),
-                dcc.Checklist(
-                    id='filter-outlier',
-                    options=[{'label': 'Normal', 'value': 'Normal'}, {'label': 'Outlier', 'value': 'Outlier'}],
-                    value=['Normal', 'Outlier'], # Default All
-                    inline=True,
-                    inputStyle={"margin-right": "5px", "margin-left": "10px"}
-                )
-            ]),
-
-            # Tile Filter (1-12)
-            html.Div(style={'width': '200px'}, children=[
-                html.Label("Filter by Tile:", style={'fontWeight': 'bold', 'fontSize': '0.9em'}),
-                dcc.Dropdown(
-                    id='filter-tile',
-                    options=[{'label': f"Tile {i}", 'value': i} for i in range(1, 13)],
-                    multi=True,
-                    placeholder="All Tiles",
-                    style={'fontSize': '0.9em'}
-                )
-            ]),
-
-            # Pass Filter (Moved from Spatial Tab to here for Global control)
-            html.Div(style={'width': '200px'}, children=[
-                html.Label("Filter by Pass:", style={'fontWeight': 'bold', 'fontSize': '0.9em'}),
-                dcc.Dropdown(
-                    id='filter-pass', # Renamed from pass-selector
-                    multi=True,
-                    placeholder="All Passes",
-                    style={'fontSize': '0.9em'}
-                )
-            ]),
+            #ADVANCED QUERY BUILDER (Row 2)
+            html.Div(style={'borderTop': '1px solid #ccc', 'paddingTop': '15px', 'display': 'flex', 'flexDirection': 'column', 'gap': '10px'}, children=[
+                html.Div(style={'display': 'flex', 'alignItems': 'center', 'gap': '10px'}, children=[
+                    html.Label("Advanced Query:", style={'fontWeight': 'bold', 'whiteSpace': 'nowrap'}),
+                    
+                    #text input (debounced)
+                    dcc.Input(
+                        id='query-input', 
+                        type='text', 
+                        placeholder="e.g., mean_grf > 200 and side == 'Left'", 
+                        debounce=True, 
+                        style={'flex': '1', 'padding': '0 12px', 'height': '38px', 'boxSizing': 'border-box', 'borderRadius': '4px', 'border': '1px solid #ccc'}
+                    ),
+                    
+                    # Action Buttons
+                    html.Button('Apply', id='apply-query-btn', n_clicks=0, style={
+                        'height': '38px', 'padding': '0 15px', 'boxSizing': 'border-box', 
+                        'display': 'flex', 'alignItems': 'center', 'justifyContent': 'center',
+                        'backgroundColor': '#007BFF', 'color': 'white', 'border': 'none', 
+                        'borderRadius': '4px', 'cursor': 'pointer', 'fontWeight': 'bold'
+                    }),
+                    html.Button('Clear', id='clear-query-btn', n_clicks=0, style={
+                        'height': '38px', 'padding': '0 15px', 'boxSizing': 'border-box', 
+                        'display': 'flex', 'alignItems': 'center', 'justifyContent': 'center',
+                        'backgroundColor': '#6c757d', 'color': 'white', 'border': 'none', 
+                        'borderRadius': '4px', 'cursor': 'pointer'
+                    })
+                ]),
+                
+                #error message display
+                html.Div(id='query-error-msg', style={'color': 'red', 'fontWeight': 'bold', 'fontSize': '0.9em', 'minHeight': '15px'}),
+                
+                #Collapsible Help / Schema Info
+                html.Details(children=[
+                    html.Summary("Query Syntax Help & Available Columns", style={'cursor': 'pointer', 'color': '#007BFF', 'fontSize': '0.9em', 'userSelect': 'none'}),
+                    html.Div(style={'marginTop': '10px', 'padding': '15px', 'backgroundColor': '#fff', 'border': '1px solid #ddd', 'borderRadius': '4px', 'fontSize': '0.85em'}, children=[
+                        html.P("Use standard Python/Pandas logic. Strings must be wrapped in quotes (e.g., 'Left' or 'Right').", style={'margin': '0 0 10px 0'}),
+                        
+                        html.B("Available Columns:"),
+                        html.Ul(style={'marginTop': '5px', 'columnCount': '3'}, children=[
+                            html.Li(c) for c in ['footstep_index', 'start_frame', 'r_score', 'mean_grf', 'foot_length', 'foot_width', 'rotation_angle', 'side', 'is_outlier', 'tile_id', 'pass_id']
+                        ]),
+                        
+                        html.B("Examples:"),
+                        html.Ul(style={'marginTop': '5px', 'marginBottom': '0'}, children=[
+                            html.Li("mean_grf > 150 and r_score >= 0.8"),
+                            html.Li("side == 'Right' or pass_id == 2"),
+                            html.Li("foot_length < 25 and is_outlier == 'Normal'")
+                        ])
+                    ])
+                ])
+            ])
         ]),
 
         # 1st Section: Feature Analysis & Library (Tabs)
