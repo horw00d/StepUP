@@ -1,8 +1,7 @@
 import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
-import plotly.graph_objects as go
-import pandas as pd
+import numpy as np
 
 # define standard colors for consistency across app
 COLOR_MAP = {
@@ -100,27 +99,27 @@ def create_scatter_plot(df, x_col, y_col, color_col, selected_step_id=None):
             ))
     return fig
 
-def create_rug_plot(df, rug_col, color_col, selected_step_id=None):
-    if df.empty: 
-        return px.strip(title="No Data")
+# def create_rug_plot(df, rug_col, color_col, selected_step_id=None):
+#     if df.empty: 
+#         return px.strip(title="No Data")
 
-    fig = px.strip(
-        df, x=rug_col, color=color_col, stripmode='overlay',
-        hover_data=['footstep_index', 'id'], custom_data=['id'],
-        title=f"1D Distribution: {rug_col}"
-    )
-    fig.update_layout(clickmode='event+select', margin=dict(l=20, r=20, t=30, b=20), yaxis={'visible': False}, height=150)
-    fig.update_traces(marker_size=8, jitter=0.5)
+#     fig = px.strip(
+#         df, x=rug_col, color=color_col, stripmode='overlay',
+#         hover_data=['footstep_index', 'id'], custom_data=['id'],
+#         title=f"1D Distribution: {rug_col}"
+#     )
+#     fig.update_layout(clickmode='event+select', margin=dict(l=20, r=20, t=30, b=20), yaxis={'visible': False}, height=150)
+#     fig.update_traces(marker_size=8, jitter=0.5)
 
-    if selected_step_id:
-        row = df[df['id'] == selected_step_id]
-        if not row.empty:
-            fig.add_trace(go.Scatter(
-                x=row[rug_col], y=[0]*len(row), mode='markers',
-                marker=dict(color='red', size=12, symbol='line-ns-open', line=dict(width=3)),
-                name='Selected', hoverinfo='skip'
-            ))
-    return fig
+#     if selected_step_id:
+#         row = df[df['id'] == selected_step_id]
+#         if not row.empty:
+#             fig.add_trace(go.Scatter(
+#                 x=row[rug_col], y=[0]*len(row), mode='markers',
+#                 marker=dict(color='red', size=12, symbol='line-ns-open', line=dict(width=3)),
+#                 name='Selected', hoverinfo='skip'
+#             ))
+#     return fig
 
 # WALKWAY PLOT
 def create_walkway_plot(footsteps, selected_step_id=None):
@@ -326,19 +325,24 @@ def create_physics_plots(metrics):
 
     return fig_grf, fig_cop
 
-def create_heatmap_and_histogram(matrix, step_id):
+def create_heatmap_and_histogram(matrix, step_id, dynamic_scale=True):
     """
     Generates a synchronized Heatmap and Histogram for a single step.
+    Uses numpy for explicit binning to ensure perfect color mapping.
     """
     if matrix is None:
         empty = go.Layout(title="No Data", xaxis={'visible': False}, yaxis={'visible': False})
         return go.Figure(layout=empty), go.Figure(layout=empty)
 
-    #configuration for both plots
-    # Standard gait analysis usually caps visual range around 150-300 kPa
-    # We use a fixed range so colors are consistent across all steps
-    Z_MIN, Z_MAX = 0, 300 
+    #config
     THRESHOLD = 10  # kPa noise floor
+    Z_MIN = 0
+    
+    #calculate true maximum of the current footstep
+    current_max = np.max(matrix)
+    
+    #set upper bound based on dynamic or fixed requirement
+    Z_MAX = current_max if dynamic_scale else 800 
 
     #1 HEATMAP
     heatmap_fig = go.Figure(data=go.Heatmap(
@@ -348,14 +352,14 @@ def create_heatmap_and_histogram(matrix, step_id):
         hovertemplate="X: %{x}<br>Y: %{y}<br>Pressure: %{z:.1f} kPa<extra></extra>",
     ))
     
-    # add the 10kPa contour line
+    #10kPa Contour Outline
     heatmap_fig.add_trace(go.Contour(
         z=matrix,
         contours=dict(
             type='constraint',
             operation='>=',
             value=THRESHOLD,
-            coloring='none', # Don't fill, just draw line
+            coloring='none',
         ),
         line=dict(color='white', width=2, dash='solid'),
         showlegend=False,
@@ -363,35 +367,50 @@ def create_heatmap_and_histogram(matrix, step_id):
     ))
 
     heatmap_fig.update_layout(
-        title=f"Pressure Map (Step {step_id})",
+        title=f"Pressure Map (Step {step_id}) - Peak: {current_max:.1f} kPa",
         margin=dict(l=20, r=20, t=40, b=20),
         xaxis=dict(visible=False), 
-        yaxis=dict(visible=False, scaleanchor='x'), # Square aspect ratio
+        yaxis=dict(visible=False, scaleanchor='x'), 
         plot_bgcolor='black'
     )
 
-    #2 HISTOGRAM
-    # Flatten array and filter out background noise (< 10 kPa)
+    #2 HISTOGRAM (using explicit NumPy binning to fix color mapping)
     flat_data = matrix.flatten()
     active_pixels = flat_data[flat_data > THRESHOLD]
 
-    hist_fig = go.Figure(data=go.Histogram(
-        x=active_pixels,
-        xbins=dict(start=THRESHOLD, end=Z_MAX, size=5), # 5 kPa bins
+    #handle edge case where step is entirely noise
+    if len(active_pixels) == 0:
+        return heatmap_fig, go.Figure(layout=go.Layout(title="no pressure > 10 kPa"))
+
+    #explicitly calculate bins (5 kPa increments up to the maximum)
+    bins = np.arange(THRESHOLD, current_max + 5, 5)
+    counts, bin_edges = np.histogram(active_pixels, bins=bins)
+    
+    #calculate the center of each bin for the X-axis
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+
+    #plot using go.Bar to enforce strict color mapping
+    hist_fig = go.Figure(data=go.Bar(
+        x=bin_centers,
+        y=counts,
+        width=5, #match the bin size
         marker=dict(
-            color=active_pixels, 
-            cmin=Z_MIN, cmax=Z_MAX, # sync colors with heatmap
-            colorscale='Jet'
-        )
+            color=bin_centers, #color strictly by the x-axis value
+            cmin=Z_MIN, 
+            cmax=Z_MAX, 
+            colorscale='Jet',
+            line=dict(width=0) #remove bar borders for cleaner look
+        ),
+        hovertemplate="Pressure: %{x} kPa<br>Sensors: %{y}<extra></extra>"
     ))
 
     hist_fig.update_layout(
-        title=f"Pressure Distribution (> {THRESHOLD} kPa)",
+        title=f"Load Distribution (> {THRESHOLD} kPa)",
         xaxis_title="Pressure (kPa)",
         yaxis_title="Count (Sensors)",
         margin=dict(l=40, r=20, t=40, b=40),
         showlegend=False,
-        bargap=0.05
+        bargap=0
     )
 
     return heatmap_fig, hist_fig
