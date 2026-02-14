@@ -180,16 +180,34 @@ def create_layout():
 
         # 3rd Section: Heatmap + Histogram for Selected Step
         html.Div(style={'marginTop': '20px', 'paddingTop': '20px', 'borderTop': '2px solid #ddd'}, children=[
-            html.H3("Pressure Detail", style={'marginBottom': '10px'}),
+            
+            #updated header with color scale toggle
+            html.Div(style={'display': 'flex', 'justifyContent': 'space-between', 'alignItems': 'center', 'marginBottom': '10px'}, children=[
+                html.H3("Pressure Detail", style={'margin': '0'}),
+                
+                html.Div(children=[
+                    html.Label("Color Scale:", style={'fontWeight': 'bold', 'marginRight': '10px'}),
+                    dcc.RadioItems(
+                        id='color-scale-toggle',
+                        options=[
+                            {'label': ' Dynamic (Step Peak) ', 'value': 'dynamic'},
+                            {'label': ' Absolute (800 kPa) ', 'value': 'absolute'}
+                        ],
+                        value='dynamic', #default state
+                        inline=True,
+                        inputStyle={"marginRight": "5px", "marginLeft": "15px"}
+                    )
+                ])
+            ]),
             
             html.Div(style={'display': 'flex', 'gap': '20px'}, children=[
-                # Heatmap
+                #Heatmap
                 html.Div(style={'flex': '1', 'backgroundColor': 'white', 'padding': '15px', 'borderRadius': '5px', 'boxShadow': '0 2px 4px rgba(0,0,0,0.1)'}, 
                 children=[
                     dcc.Graph(id='heatmap-plot', style={'height': '400px'})
                 ]),
 
-                # Histogram
+                #Histogram
                 html.Div(style={'flex': '1', 'backgroundColor': 'white', 'padding': '15px', 'borderRadius': '5px', 'boxShadow': '0 2px 4px rgba(0,0,0,0.1)'}, 
                 children=[
                     dcc.Graph(id='histogram-plot', style={'height': '400px'})

@@ -1,17 +1,13 @@
 from dash import Input, Output, ctx, ALL, no_update
-from dash import html # Imported here for grid generation
+from dash import html
 import plotly.graph_objects as go
 import pandas as pd
 import data
 import graphics
 import physics 
 
-# --- HELPER FUNCTION ---
+#helper function to apply all filters in one place
 def filter_dataframe(df, sides, outliers, tiles, passes):
-    """
-    Common logic to filter the dataframe based on UI inputs.
-    Returns the filtered DataFrame.
-    """
     if df.empty: return df
     
     # 1. Filter Side
@@ -49,7 +45,6 @@ def register_callbacks(app):
          Input('rug-dd', 'value'),
          Input('color-dd', 'value'),
          Input('selected-step-store', 'data'),
-         # --- NEW FILTER INPUTS ---
          Input('filter-side', 'value'),
          Input('filter-outlier', 'value'),
          Input('filter-tile', 'value'),
@@ -215,14 +210,19 @@ def register_callbacks(app):
     @app.callback(
         [Output('heatmap-plot', 'figure'),
          Output('histogram-plot', 'figure')],
-        Input('selected-step-store', 'data')
+        [Input('selected-step-store', 'data'),
+         Input('color-scale-toggle', 'value')]
     )
-    def update_step_details(step_id):
+    def update_step_details(step_id, scale_mode):
+        #handle empty state
         if not step_id:
             return graphics.create_heatmap_and_histogram(None, None)
             
-        # 1. Fetch the matrix (Instant load from .npy)
+        #fetch the matrix
         matrix = data.fetch_footstep_matrix(step_id)
         
-        # 2. Generate Plots
-        return graphics.create_heatmap_and_histogram(matrix, step_id)
+        #determine the scaling mode
+        is_dynamic = (scale_mode == 'dynamic')
+        
+        #generate Plots with the toggle state passed down
+        return graphics.create_heatmap_and_histogram(matrix, step_id, dynamic_scale=is_dynamic)

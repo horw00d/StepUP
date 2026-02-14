@@ -15,3 +15,4 @@ register_callbacks(app)
 # 4. Run
 if __name__ == '__main__':
     app.run(debug=True, port=8000)
+    print("App is running on http://localhost:8000")
