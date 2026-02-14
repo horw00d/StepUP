@@ -1,33 +1,10 @@
-from dash import Input, Output, ctx, ALL, no_update
-from dash import html
+from helpers import filter_dataframe
+from dash import html, Input, Output, ctx, ALL, no_update
 import plotly.graph_objects as go
 import pandas as pd
 import data
 import graphics
 import physics 
-
-#helper function to apply all filters in one place
-def filter_dataframe(df, sides, outliers, tiles, passes):
-    if df.empty: return df
-    
-    # 1. Filter Side
-    if sides:
-        df = df[df['side'].isin(sides)]
-        
-    # 2. Filter Outlier Status
-    if outliers:
-        df = df[df['is_outlier'].isin(outliers)]
-        
-    # 3. Filter Tile ID (If selected)
-    if tiles:
-        # tile_id is an integer in the DF, filters are likely ints from the dropdown
-        df = df[df['tile_id'].isin(tiles)]
-        
-    # 4. Filter Pass ID (If selected)
-    if passes:
-        df = df[df['pass_id'].isin(passes)]
-        
-    return df
 
 def register_callbacks(app):
 
@@ -36,7 +13,8 @@ def register_callbacks(app):
         [Output('main-scatter', 'figure'),
          Output('rug-plot', 'figure'),
          Output('image-grid', 'children'),
-         Output('trial-status', 'children')],
+         Output('trial-status', 'children'),
+         Output('query-error-msg', 'children')],
         [Input('part-dd', 'value'),
          Input('shoe-dd', 'value'),
          Input('speed-dd', 'value'),
@@ -48,40 +26,33 @@ def register_callbacks(app):
          Input('filter-side', 'value'),
          Input('filter-outlier', 'value'),
          Input('filter-tile', 'value'),
-         Input('filter-pass', 'value')]
+         Input('filter-pass', 'value'),
+         Input('apply-query-btn', 'n_clicks'), 
+         Input('query-input', 'value')]
     )
     def update_views(part, shoe, speed, x_col, y_col, rug_col, color_col, selected_step_id, 
-                     sides, outliers, tiles, passes):
+                     sides, outliers, tiles, passes, apply_clicks, query_string):
         
         if not (part and shoe and speed):
-            return no_update, no_update, [], ""
+            return no_update, no_update, [], "", ""
 
-        # 1. Fetch Data (Optimized)
         trial, steps, df = data.fetch_trial_data(part, shoe, speed)
-        
         if not trial:
-            # Return empty states if no trial found
             return graphics.create_scatter_plot(pd.DataFrame(), "","", ""), \
-                   graphics.create_rug_plot(pd.DataFrame(), "", ""), [], "No Data"
+                   graphics.create_rug_plot(pd.DataFrame(), "", ""), [], "No Data", ""
 
-        # 2. Apply Unified Filters
-        df_filtered = filter_dataframe(df, sides, outliers, tiles, passes)
+        # Apply Filters & Catch Errors
+        df_filtered, error_msg = filter_dataframe(df, sides, outliers, tiles, passes, query_string)
 
-        # 3. Sync the 'steps' list for the Grid
-        # We only want to show steps that exist in the filtered DataFrame
         if not df_filtered.empty:
             valid_ids = set(df_filtered['id'])
             filtered_steps_list = [s for s in steps if s.id in valid_ids]
         else:
             filtered_steps_list = []
 
-        # 4. Generate Plots using Filtered Data
         scatter_fig = graphics.create_scatter_plot(df_filtered, x_col, y_col, color_col, selected_step_id)
         rug_fig = graphics.create_rug_plot(df_filtered, rug_col, color_col, selected_step_id)
 
-        # 5. Generate Grid (HTML Generation)
-        # Note: We implement Pagination in the next step, for now this renders the filtered set.
-        # Ideally, slicing filtered_steps_list[:20] prevents browser lag if filter is "All"
         grid_items = []
         for step in filtered_steps_list: 
             is_selected = (step.id == selected_step_id)
@@ -89,8 +60,7 @@ def register_callbacks(app):
             bg_color = '#fff0f0' if is_selected else 'white'
             
             item = html.Div(
-                id={'type': 'grid-card', 'index': step.id},
-                n_clicks=0,
+                id={'type': 'grid-card', 'index': step.id}, n_clicks=0,
                 style={'cursor': 'pointer', 'textAlign': 'center', 'border': border_style, 'backgroundColor': bg_color, 'borderRadius': '5px', 'padding': '5px'},
                 children=[
                     html.Img(src=f"/assets/footsteps/step_{step.id}.png", style={'width': '100%'}),
@@ -99,7 +69,8 @@ def register_callbacks(app):
             )
             grid_items.append(item)
 
-        return scatter_fig, rug_fig, grid_items, f"Trial: {part}-{shoe}-{speed} ({len(filtered_steps_list)} steps)"
+        status = f"Trial: {part}-{shoe}-{speed} ({len(filtered_steps_list)} steps)"
+        return scatter_fig, rug_fig, grid_items, status, error_msg
 
 
     # B. UNIFIED SELECTION (Unchanged)
@@ -144,7 +115,7 @@ def register_callbacks(app):
         return graphics.create_physics_plots(metrics)
 
 
-    # D. UPDATE WALKWAY PLOT (Updated with Filters)
+    # D. UPDATE WALKWAY PLOT
     @app.callback(
         Output('walkway-plot', 'figure'),
         [Input('part-dd', 'value'),
@@ -155,32 +126,25 @@ def register_callbacks(app):
          Input('filter-outlier', 'value'),
          Input('filter-tile', 'value'),
          Input('filter-pass', 'value'),
-         # --- NEW INPUT ---
-         Input('isolate-pass-check', 'value')]
+         Input('isolate-pass-check', 'value'),
+         Input('apply-query-btn', 'n_clicks'), 
+         Input('query-input', 'value')]        
     )
-    def update_walkway(part, shoe, speed, selected_step_id, sides, outliers, tiles, passes, isolate_mode):
+    def update_walkway(part, shoe, speed, selected_step_id, sides, outliers, tiles, passes, isolate_mode, apply_clicks, query_string):
         if not (part and shoe and speed):
             return go.Figure()
 
-        # 1. Fetch Data
         trial, steps, df = data.fetch_trial_data(part, shoe, speed)
-        
         if not trial: return go.Figure()
 
-        # 2. Base Filtering (Global Filters)
-        # If 'passes' is empty, filter_dataframe treats it as "All"
-        df_filtered = filter_dataframe(df, sides, outliers, tiles, passes)
+        # The walkway ignores the error_msg output (it is already handled by update_views)
+        df_filtered, _ = filter_dataframe(df, sides, outliers, tiles, passes, query_string)
         
-        # 3. Handle "Isolate Pass" Logic
         if selected_step_id and ('isolate' in isolate_mode):
-            # If a step is selected AND isolation is on...
-            # We override the global pass filter to show ONLY that step's pass
             selected_step = next((s for s in steps if s.id == selected_step_id), None)
             if selected_step and selected_step.pass_id is not None:
-                # Filter the DF further to just this pass
                 df_filtered = df_filtered[df_filtered['pass_id'] == selected_step.pass_id]
 
-        # 4. Get Final Step List
         if df_filtered.empty:
              return graphics.create_walkway_plot([], selected_step_id)
 
@@ -226,3 +190,12 @@ def register_callbacks(app):
         
         #generate Plots with the toggle state passed down
         return graphics.create_heatmap_and_histogram(matrix, step_id, dynamic_scale=is_dynamic)
+
+    # G. CLEAR QUERY BUTTON LOGIC
+    @app.callback(
+        Output('query-input', 'value'),
+        Input('clear-query-btn', 'n_clicks'),
+        prevent_initial_call=True
+    )
+    def clear_query(n_clicks):
+        return ""
