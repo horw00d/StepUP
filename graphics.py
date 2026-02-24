@@ -99,28 +99,6 @@ def create_scatter_plot(df, x_col, y_col, color_col, selected_step_id=None):
             ))
     return fig
 
-# def create_rug_plot(df, rug_col, color_col, selected_step_id=None):
-#     if df.empty: 
-#         return px.strip(title="No Data")
-
-#     fig = px.strip(
-#         df, x=rug_col, color=color_col, stripmode='overlay',
-#         hover_data=['footstep_index', 'id'], custom_data=['id'],
-#         title=f"1D Distribution: {rug_col}"
-#     )
-#     fig.update_layout(clickmode='event+select', margin=dict(l=20, r=20, t=30, b=20), yaxis={'visible': False}, height=150)
-#     fig.update_traces(marker_size=8, jitter=0.5)
-
-#     if selected_step_id:
-#         row = df[df['id'] == selected_step_id]
-#         if not row.empty:
-#             fig.add_trace(go.Scatter(
-#                 x=row[rug_col], y=[0]*len(row), mode='markers',
-#                 marker=dict(color='red', size=12, symbol='line-ns-open', line=dict(width=3)),
-#                 name='Selected', hoverinfo='skip'
-#             ))
-#     return fig
-
 # WALKWAY PLOT
 def create_walkway_plot(footsteps, selected_step_id=None):
     SENSOR_SIZE_M = 0.005
@@ -294,36 +272,125 @@ def create_rug_plot(df, rug_col, color_col, selected_step_id=None):
     )
     return fig
 
-# PHYSICS PLOTS
-def create_physics_plots(metrics):
-    empty = go.Layout(xaxis={"visible": False}, yaxis={"visible": False}, annotations=[{"text": "Select a step", "showarrow": False}])
-    if not metrics: return go.Figure(layout=empty), go.Figure(layout=empty)
+def get_empty_physics_layout(title="No Data"):
+    """Helper to return a clean empty state for physics plots."""
+    return go.Layout(
+        title=title, xaxis={"visible": False}, yaxis={"visible": False}, 
+        annotations=[{"text": "Select a step or enable Overlay", "showarrow": False}],
+        plot_bgcolor='white'
+    )
 
-    # GRF
-    fig_grf = go.Figure()
-    fig_grf.add_trace(go.Scatter(x=metrics['time_pct'], y=metrics['grf'], mode='lines', line=dict(color='blue', width=3)))
-    fig_grf.update_layout(title=f"Vertical GRF (Step {metrics['step_id']})", xaxis_title="% Stance", yaxis_title="Force (N)", margin=dict(l=40, r=40, t=40, b=40))
+def create_grf_plot(all_metrics, selected_step_id=None, overlay_mode=False):
+    """
+    Generates the Vertical Ground Reaction Force (GRF) plot.
+    Supports 'Ghost Line' overlay for contextual variance analysis.
+    """
+    if not all_metrics:
+        return go.Figure(layout=get_empty_physics_layout("Vertical GRF"))
 
-    # COP
-    fig_cop = go.Figure()
-    fig_cop.add_trace(go.Scatter(x=metrics['cop_ml'], y=metrics['cop_ap'], mode='lines+markers', marker=dict(size=4, color=metrics['time_pct'], colorscale='Viridis')))
-    fig_cop.update_layout(title="COP Trajectory", xaxis_title="Mediolateral (cm)", yaxis_title="Anteroposterior (cm)", yaxis=dict(scaleanchor="x", scaleratio=1), margin=dict(l=40, r=40, t=40, b=40))
+    fig = go.Figure()
+    selected_metric = None
 
-    return fig_grf, fig_cop
-    empty = go.Layout(xaxis={"visible": False}, yaxis={"visible": False}, annotations=[{"text": "Select a step", "showarrow": False}])
-    if not metrics: return go.Figure(layout=empty), go.Figure(layout=empty)
+    # 1. Plot the Background (Ghost Lines)
+    if overlay_mode:
+        for m in all_metrics:
+            if m['step_id'] == selected_step_id:
+                selected_metric = m # Save for later so it renders on top
+                continue
+            
+            # Plot faded background line
+            fig.add_trace(go.Scatter(
+                x=m['time_pct'], y=m['grf'], 
+                mode='lines', 
+                line=dict(color='lightgrey', width=1), 
+                opacity=0.3, 
+                hoverinfo='skip', # Don't overwhelm the user with tooltips
+                showlegend=False
+            ))
+    else:
+        # If not in overlay mode, just find the selected metric
+        selected_metric = next((m for m in all_metrics if m['step_id'] == selected_step_id), None)
 
-    # GRF
-    fig_grf = go.Figure()
-    fig_grf.add_trace(go.Scatter(x=metrics['time_pct'], y=metrics['grf'], mode='lines', line=dict(color='blue', width=3)))
-    fig_grf.update_layout(title=f"Vertical GRF (Step {metrics['step_id']})", xaxis_title="% Stance", yaxis_title="Force (N)", margin=dict(l=40, r=40, t=40, b=40))
+    # 2. Plot the Foreground (Selected Step)
+    if selected_metric:
+        fig.add_trace(go.Scatter(
+            x=selected_metric['time_pct'], y=selected_metric['grf'], 
+            mode='lines', 
+            line=dict(color='#007BFF', width=3), # Bold Blue
+            name=f"Step {selected_metric['step_id']}",
+            hovertemplate="Stance: %{x:.1f}%<br>Force: %{y:.1f} N<extra></extra>"
+        ))
 
-    # COP
-    fig_cop = go.Figure()
-    fig_cop.add_trace(go.Scatter(x=metrics['cop_ml'], y=metrics['cop_ap'], mode='lines+markers', marker=dict(size=4, color=metrics['time_pct'], colorscale='Viridis')))
-    fig_cop.update_layout(title="COP Trajectory", xaxis_title="Mediolateral (cm)", yaxis_title="Anteroposterior (cm)", yaxis=dict(scaleanchor="x", scaleratio=1), margin=dict(l=40, r=40, t=40, b=40))
+    # 3. Layout Formatting
+    title_text = f"Vertical GRF (Step {selected_step_id})" if selected_step_id else "Vertical GRF"
+    fig.update_layout(
+        title=title_text, 
+        xaxis_title="% Stance", 
+        yaxis_title="Force (N)", 
+        margin=dict(l=40, r=20, t=40, b=40),
+        plot_bgcolor='#f9f9f9',
+        showlegend=False
+    )
+    return fig
 
-    return fig_grf, fig_cop
+
+def create_cop_plot(all_metrics, selected_step_id=None, overlay_mode=False):
+    """
+    Generates the Center of Pressure (COP) trajectory plot.
+    Supports 'Ghost Line' overlay for contextual variance analysis.
+    """
+    if not all_metrics:
+        return go.Figure(layout=get_empty_physics_layout("COP Trajectory"))
+
+    fig = go.Figure()
+    selected_metric = None
+
+    # 1. Plot the Background (Ghost Trajectories)
+    if overlay_mode:
+        for m in all_metrics:
+            if m['step_id'] == selected_step_id:
+                selected_metric = m
+                continue
+            
+            fig.add_trace(go.Scatter(
+                x=m['cop_ml'], y=m['cop_ap'], 
+                mode='lines', # Just lines for the ghosts to reduce visual clutter
+                line=dict(color='lightgrey', width=1), 
+                opacity=0.3, 
+                hoverinfo='skip',
+                showlegend=False
+            ))
+    else:
+        selected_metric = next((m for m in all_metrics if m['step_id'] == selected_step_id), None)
+
+    # 2. Plot the Foreground (Selected Trajectory with Time Gradient)
+    if selected_metric:
+        fig.add_trace(go.Scatter(
+            x=selected_metric['cop_ml'], y=selected_metric['cop_ap'], 
+            mode='lines+markers', 
+            marker=dict(
+                size=5, 
+                color=selected_metric['time_pct'], # Gradient coloring for time
+                colorscale='Viridis',
+                showscale=True,
+                colorbar=dict(title="% Stance", thickness=10, len=0.8)
+            ),
+            line=dict(color='black', width=1), # Thin black line connecting the colored dots
+            name=f"Step {selected_metric['step_id']}",
+            hovertemplate="ML: %{x:.2f} cm<br>AP: %{y:.2f} cm<extra></extra>"
+        ))
+
+    # 3. Layout Formatting
+    fig.update_layout(
+        title="COP Trajectory", 
+        xaxis_title="Mediolateral (cm)", 
+        yaxis_title="Anteroposterior (cm)", 
+        yaxis=dict(scaleanchor="x", scaleratio=1), # Keep physical aspect ratio 1:1
+        margin=dict(l=40, r=20, t=40, b=40),
+        plot_bgcolor='#f9f9f9',
+        showlegend=False
+    )
+    return fig
 
 def create_heatmap_and_histogram(matrix, step_id, dynamic_scale=True):
     """
