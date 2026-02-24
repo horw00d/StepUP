@@ -26,6 +26,7 @@ def create_layout():
         
         # Store
         dcc.Store(id='selected-step-store'),
+        dcc.Store(id='physics-cache', storage_type='memory'),
 
         # Header
         html.Div(style={'borderBottom': '1px solid #ddd', 'paddingBottom': '15px', 'marginBottom': '10px'}, children=[
@@ -201,14 +202,29 @@ def create_layout():
             
             # LEFT COLUMN: Physics (Stacked Vertically)
             html.Div(style={'flex': '1', 'display': 'flex', 'flexDirection': 'column', 'gap': '10px'}, children=[
-                html.H4("Physics", style={'marginBottom': '5px'}),
+                html.Div(style={'display': 'flex', 'justifyContent': 'space-between', 'alignItems': 'center'}, children=[
+                    html.H4("Physics", style={'marginBottom': '5px'}),
+                    
+                    #for ghost lines
+                    dcc.RadioItems(
+                        id='physics-overlay-toggle',
+                        options=[
+                            {'label': ' Individual Step ', 'value': 'individual'},
+                            {'label': ' Overlay All Filtered ', 'value': 'overlay'}
+                        ],
+                        value='individual', #initial state
+                        inline=True,
+                        inputStyle={"marginRight": "5px", "marginLeft": "15px"},
+                        style={'fontSize': '0.9em'}
+                    )
+                ]),
                 
-                # GRF Plot (Top Half)
+                #GRF Plot
                 html.Div(style={'flex': '1', 'border': '1px solid #eee', 'borderRadius': '5px', 'padding': '5px'}, children=[
                     dcc.Graph(id='grf-plot', style={'height': '100%'})
                 ]),
                 
-                # COP Plot (Bottom Half)
+                #COP Plot
                 html.Div(style={'flex': '1', 'border': '1px solid #eee', 'borderRadius': '5px', 'padding': '5px'}, children=[
                     dcc.Graph(id='cop-plot', style={'height': '100%'})
                 ])

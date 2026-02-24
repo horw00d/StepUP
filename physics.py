@@ -1,125 +1,109 @@
 import numpy as np
+import time
 import traceback
-from scipy.signal import butter, filtfilt # new import from aaron's notebook
-from sqlalchemy import create_engine, select
-from sqlalchemy.orm import Session
-from models import Footstep, Trial
+from scipy.signal import butter, filtfilt
+from sqlalchemy import select
+from models import Footstep
 from database import engine, Session
 
-SENSOR_AREA_M2 = 2.5e-5 # (0.5cm * 0.5cm) in m^2
-SENSOR_SIDE_CM = 0.5 # 5mm
-SAMPLING_FREQ = 100 # 100 Hz (from notebook)
+SENSOR_AREA_M2 = 2.5e-5 
+SENSOR_SIDE_CM = 0.5 
+SAMPLING_FREQ = 100 
+
+def safe_filtfilt(b, a, signal):
+    """Safely applies filtfilt, bypassing if the array is too short."""
+    padlen = 3 * max(len(a), len(b))
+    if len(signal) <= padlen:
+        return signal
+    return filtfilt(b, a, signal)
+
+def get_batch_physics(step_ids):
+    """
+    FULLY OPTIMIZED: Reads the DB once, opens the .npz file once, 
+    and uses pure NumPy Vectorization to process math instantly.
+    """
+    if not step_ids: return []
+
+    start_time = time.time()
+    all_metrics = []
+
+    #1 fetch all steps in a single DB query
+    with Session(engine) as session:
+        stmt = select(Footstep).where(Footstep.id.in_(step_ids))
+        steps = session.scalars(stmt).all()
+
+        if not steps: return []
+
+        steps_by_file = {}
+        for s in steps:
+            fp = s.trial.file_path
+            if fp not in steps_by_file:
+                steps_by_file[fp] = []
+            steps_by_file[fp].append(s)
+
+    #2 open each file once
+    for file_path, file_steps in steps_by_file.items():
+        try:
+            with np.load(file_path) as data:
+                main_tensor = data['arr_0'] if 'arr_0' in data else None
+
+                #3 process each step
+                for step in file_steps:
+                    idx = step.footstep_index
+                    tensor = main_tensor[idx] if main_tensor is not None else data[str(idx)]
+
+                    #1 calculate GRF for all frames at once
+                    raw_grf = np.sum(tensor, axis=(1, 2))
+                    frames, height, width = tensor.shape
+                    
+                    #2 create coordinate grids
+                    x_coords, y_coords = np.meshgrid(np.arange(width), np.arange(height))
+
+                    #3 multiply the entire 3D tensor by the 2D grids instantly
+                    weighted_x_sum = np.sum(tensor * x_coords, axis=(1, 2))
+                    weighted_y_sum = np.sum(tensor * y_coords, axis=(1, 2))
+
+                    #4 divide by GRF safely (ignore division by zero warnings)
+                    with np.errstate(divide='ignore', invalid='ignore'):
+                        cop_ml = np.where(raw_grf > 0, weighted_x_sum / raw_grf, 0.0)
+                        cop_ap = np.where(raw_grf > 0, weighted_y_sum / raw_grf, 0.0)
+
+                    #data cleaning
+                    mask = raw_grf > 0
+                    if np.any(mask):
+                        cop_ml = cop_ml - np.mean(cop_ml[mask])
+                        cop_ap = cop_ap - np.mean(cop_ap[mask])
+
+                    # data filtering
+                    order = 2
+                    cutoff = 20
+                    nyquist = 0.5 * SAMPLING_FREQ
+                    normal_cutoff = cutoff / nyquist
+                    b, a = butter(order, normal_cutoff, btype='low', analog=False)
+
+                    grf_filtered = safe_filtfilt(b, a, raw_grf)
+                    cop_ml_filtered = safe_filtfilt(b, a, cop_ml)
+                    cop_ap_filtered = safe_filtfilt(b, a, cop_ap)
+
+                    #unit conversion-
+                    grf_final = grf_filtered * 1000 * SENSOR_AREA_M2
+                    cop_ml_final = cop_ml_filtered * SENSOR_SIDE_CM
+                    cop_ap_final = cop_ap_filtered * SENSOR_SIDE_CM
+
+                    all_metrics.append({
+                        "time_pct": np.linspace(0, 100, len(grf_final)),
+                        "grf": grf_final,
+                        "cop_ml": cop_ml_final,
+                        "cop_ap": cop_ap_final,
+                        "step_id": step.id
+                    })
+
+        except Exception as e:
+            print(f"CRITICAL ERROR processing file {file_path}: {e}")
+
+    return all_metrics
 
 def get_footstep_physics(footstep_id):
-    
-    with Session(engine) as session:
-        step = session.get(Footstep, footstep_id)
-        if not step:
-            print("ERROR: Footstep not found in DB")
-            return None
-        
-        try:
-            file_path = step.trial.file_path
-            idx = step.footstep_index
-            
-            with np.load(file_path) as data:
-                # Load Tensor
-                if 'arr_0' in data:
-                    tensor = data['arr_0'][idx]
-                else:
-                    str_idx = str(idx)
-                    if str_idx in data:
-                        tensor = data[str_idx]
-                    else:
-                        print(f"ERROR: Key '{str_idx}' not found.")
-                        return None
-
-                # calculate raw time series
-                # calculate in raw units first, then filter, then convert to physics units
-                
-                # GRF (sum of pressure)
-                # shape: (frames,)
-                raw_grf = np.sum(tensor, axis=(1, 2))
-
-                # COP (weighted average of indices)
-                frames, height, width = tensor.shape
-                x_coords, y_coords = np.meshgrid(np.arange(width), np.arange(height))
-                
-                cop_ml_indices = [] 
-                cop_ap_indices = []
-
-                for t in range(frames):
-                    frame_pressure = tensor[t]
-                    total_p = raw_grf[t]
-                    
-                    if total_p == 0:
-                        # swing phase (foot in air)
-                        cop_ml_indices.append(np.nan)
-                        cop_ap_indices.append(np.nan)
-                    else:
-                        # weighted average of pixel indicies
-                        c_x = np.sum(x_coords * frame_pressure) / total_p
-                        c_y = np.sum(y_coords * frame_pressure) / total_p
-                        
-                        cop_ml_indices.append(c_x)
-                        cop_ap_indices.append(c_y)
-
-                # convert lists to numpy arrays for processing
-                cop_ml = np.array(cop_ml_indices)
-                cop_ap = np.array(cop_ap_indices)
-
-                # 2. Data Cleaning (Research Methodology)
-                
-                # A. handle NaNs (replace with 0 or mean to allow filtering)
-                cop_ml[np.isnan(cop_ml)] = 0
-                cop_ap[np.isnan(cop_ap)] = 0
-                
-                # B. Mean Centering (Crucial for COP Trajectory shape)
-                # "Center the time series so COP is with respect to foot center"
-                # We use nanmean to ignore the swing phase zeros if possible, 
-                # but since we zeroed them, we just center the active part.
-                # Ideally we center based on the non-zero parts.
-                mask = raw_grf > 0
-                if np.any(mask):
-                    cop_ml_center = np.mean(cop_ml[mask])
-                    cop_ap_center = np.mean(cop_ap[mask])
-                    cop_ml = cop_ml - cop_ml_center
-                    cop_ap = cop_ap - cop_ap_center
-
-                # 3. Filtering (btterworth low-pass)
-                # "2nd order low-pass butterworth filter with a cut-off frequency of 20Hz"
-                order = 2
-                cutoff = 20
-                nyquist = 0.5 * SAMPLING_FREQ
-                normal_cutoff = cutoff / nyquist
-                b, a = butter(order, normal_cutoff, btype='low', analog=False)
-
-                # Apply filter (filtfilt applies it forward and backward for zero phase shift)
-                # we filter GRF and both COP axes
-                grf_filtered = filtfilt(b, a, raw_grf)
-                cop_ml_filtered = filtfilt(b, a, cop_ml)
-                cop_ap_filtered = filtfilt(b, a, cop_ap)
-
-                # 4. Unit Conversion
-                
-                # GRF: kPa -> Newtons
-                # Formula: GRF(N) = 1000 * Area(m2) * Pressure(kPa)
-                grf_final = grf_filtered * 1000 * SENSOR_AREA_M2
-
-                # COP: Indices -> Centimeters
-                # Formula: Index * 0.5 cm
-                cop_ml_final = cop_ml_filtered * SENSOR_SIDE_CM
-                cop_ap_final = cop_ap_filtered * SENSOR_SIDE_CM
-                
-                return {
-                    "time_pct": np.linspace(0, 100, len(grf_final)),
-                    "grf": grf_final,
-                    "cop_ml": cop_ml_final,
-                    "cop_ap": cop_ap_final,
-                    "step_id": step.footstep_index
-                }
-
-        except Exception:
-            print("Critical exception in physics module:")
-            print(traceback.format_exc())
-            return None
+    """Fallback single-step wrapper referencing the new optimized batch function"""
+    result = get_batch_physics([footstep_id])
+    return result[0] if result else None
