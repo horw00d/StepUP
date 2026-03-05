@@ -5,9 +5,8 @@ from sqlalchemy import select, distinct
 from types import SimpleNamespace
 from database import Session, engine
 from models import Trial, Footstep, Participant
-
-SENSOR_SIZE = 0.005
-TILE_SIZE = 0.6
+from config import SENSOR_SIZE, TILE_SIZE
+from functools import lru_cache
 
 def get_dropdown_options(model_col):
     """Reusable helper for populating dropdowns."""
@@ -15,6 +14,7 @@ def get_dropdown_options(model_col):
         results = session.scalars(select(distinct(model_col)).order_by(model_col)).all()
         return [{'label': str(x), 'value': str(x)} for x in results]
 
+@lru_cache(maxsize=32)
 def fetch_trial_data(part, shoe, speed):
     """
     Fetches the Trial and Footsteps, returning a processed DataFrame and the raw steps list.
@@ -44,8 +44,8 @@ def fetch_trial_data(part, shoe, speed):
             Footstep.box_xmax,
             Footstep.box_ymin,
             Footstep.box_ymax,
-            Footstep.peak_grf,               # <-- NEW SCALAR
-            Footstep.stance_duration_frames  # <-- NEW SCALAR
+            Footstep.peak_grf,
+            Footstep.stance_duration_frames
         ).where(Footstep.trial_id == trial.id).order_by(Footstep.footstep_index)
         
         results = session.execute(stmt).all()

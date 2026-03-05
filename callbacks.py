@@ -4,55 +4,208 @@ import plotly.graph_objects as go
 import pandas as pd
 import data
 import graphics
-import physics 
-import time
+
+# =====================================================================
+# STEPUP CALLBACK ARCHITECTURE (SINGLE-TRIAL PHASE)
+# =====================================================================
+# MASTER: Master Data Controller   -> Fetches & filters data, broadcasts valid IDs
+# A. UPDATE FEATURE PLOTS          -> Renders Scatter and Rug plots
+# B. UPDATE PHYSICS PLOTS          -> Renders GRF & COP lines (with Ghost Line logic)
+# C. UPDATE WALKWAY PLOT           -> Renders Spatial Walkway map
+# D. UPDATE PRESSURE PLOTS         -> Renders Heatmap & Histogram for specific step
+# E. UPDATE IMAGE GRID             -> Renders DOM for Footstep Library
+# F. UNIFIED SELECTION             -> Maps clicks across all plots to a single step ID
+# G. MANAGE PASS SELECTOR          -> Dynamically populates pass dropdown
+# H. CLEAR QUERY BUTTON LOGIC      -> Resets Advanced Query Input
+# =====================================================================
 
 def register_callbacks(app):
 
-    # A. UPDATE MAIN VIEWS (Scatter, Rug, Grid)
+    # MASTER: Master Data Controller
     @app.callback(
-        [Output('main-scatter', 'figure'),
-         Output('rug-plot', 'figure'),
-         Output('image-grid', 'children'),
+        [Output('filtered-data-store', 'data'),
          Output('trial-status', 'children'),
          Output('query-error-msg', 'children')],
         [Input('part-dd', 'value'),
+         Input('shoe-dd', 'value'),
+         Input('speed-dd', 'value'),
+         Input('filter-side', 'value'),
+         Input('filter-outlier', 'value'),
+         Input('filter-tile', 'value'),
+         Input('filter-pass', 'value'),
+         Input('apply-query-btn', 'n_clicks'),
+         Input('query-input', 'value')]
+    )
+    def master_data_controller(part, shoe, speed, sides, outliers, tiles, passes, apply_clicks, query_string):
+        if not (part and shoe and speed):
+            return {'valid_ids': []}, "No Trial Selected", ""
+
+        # Fetch from DB exactly ONE time per user interaction
+        trial, steps, df = data.fetch_trial_data(part, shoe, speed)
+        if not trial:
+            return {'valid_ids': []}, "No Data", ""
+
+        # Run the heavy Pandas filtering logic exactly ONE time
+        df_filtered, error_msg = filter_dataframe(df, sides, outliers, tiles, passes, query_string)
+
+        valid_ids = df_filtered['id'].tolist() if not df_filtered.empty else []
+        status = f"Trial: {part}-{shoe}-{speed} ({len(valid_ids)} steps)"
+
+        # Broadcast the state to the front-end
+        return {'valid_ids': valid_ids}, status, error_msg
+
+
+    # A. UPDATE FEATURE PLOTS
+    @app.callback(
+        [Output('main-scatter', 'figure'),
+         Output('rug-plot', 'figure')],
+        [Input('filtered-data-store', 'data'),
+         Input('part-dd', 'value'),
          Input('shoe-dd', 'value'),
          Input('speed-dd', 'value'),
          Input('xaxis-dd', 'value'),
          Input('yaxis-dd', 'value'),
          Input('rug-dd', 'value'),
          Input('color-dd', 'value'),
-         Input('selected-step-store', 'data'),
-         Input('filter-side', 'value'),
-         Input('filter-outlier', 'value'),
-         Input('filter-tile', 'value'),
-         Input('filter-pass', 'value'),
-         Input('apply-query-btn', 'n_clicks'), 
-         Input('query-input', 'value')]
+         Input('selected-step-store', 'data')]
     )
-    def update_views(part, shoe, speed, x_col, y_col, rug_col, color_col, selected_step_id, 
-                     sides, outliers, tiles, passes, apply_clicks, query_string):
-        
-        if not (part and shoe and speed):
-            return no_update, no_update, [], "", ""
+    def update_feature_plots(filtered_data, part, shoe, speed, x_col, y_col, rug_col, color_col, selected_step_id):
+        if not filtered_data or not (part and shoe and speed):
+            return graphics.create_scatter_plot(pd.DataFrame(), "","", ""), graphics.create_rug_plot(pd.DataFrame(), "", "")
 
+        valid_ids = filtered_data.get('valid_ids', [])
         trial, steps, df = data.fetch_trial_data(part, shoe, speed)
-        if not trial:
-            return graphics.create_scatter_plot(pd.DataFrame(), "","", ""), \
-                   graphics.create_rug_plot(pd.DataFrame(), "", ""), [], "No Data", ""
+        
+        if not trial or df.empty:
+            return graphics.create_scatter_plot(pd.DataFrame(), "","", ""), graphics.create_rug_plot(pd.DataFrame(), "", "")
 
-        # Apply Filters & Catch Errors
-        df_filtered, error_msg = filter_dataframe(df, sides, outliers, tiles, passes, query_string)
-
-        if not df_filtered.empty:
-            valid_ids = set(df_filtered['id'])
-            filtered_steps_list = [s for s in steps if s.id in valid_ids]
-        else:
-            filtered_steps_list = []
+        df_filtered = df[df['id'].isin(valid_ids)]
 
         scatter_fig = graphics.create_scatter_plot(df_filtered, x_col, y_col, color_col, selected_step_id)
         rug_fig = graphics.create_rug_plot(df_filtered, rug_col, color_col, selected_step_id)
+
+        return scatter_fig, rug_fig
+
+    # B. UPDATE PHYSICS PLOTS
+    @app.callback(
+        [Output('grf-plot', 'figure'),
+         Output('cop-plot', 'figure'),
+         Output('physics-cache', 'data')],
+        [Input('filtered-data-store', 'data'),
+         Input('part-dd', 'value'),
+         Input('shoe-dd', 'value'),
+         Input('speed-dd', 'value'),
+         Input('selected-step-store', 'data'),
+         Input('physics-overlay-toggle', 'value')],
+        [State('physics-cache', 'data')]
+    )
+    def update_physics_plots(filtered_data, part, shoe, speed, selected_step_id, overlay_mode, cache):
+        current_trial_key = f"{part}-{shoe}-{speed}"
+        if not cache or cache.get('trial_key') != current_trial_key:
+            cache = {'trial_key': current_trial_key, 'metrics': []}
+            
+        if not filtered_data or not (part and shoe and speed):
+            return graphics.create_grf_plot([]), graphics.create_cop_plot([]), cache
+
+        valid_ids = filtered_data.get('valid_ids', [])
+        is_overlay = (overlay_mode == 'overlay')
+        
+        # Determine exactly which footsteps we need to draw
+        target_ids = valid_ids if is_overlay else ([selected_step_id] if selected_step_id else [])
+
+        cached_metrics = cache.get('metrics', [])
+        cached_ids = [m['step_id'] for m in cached_metrics]
+        missing_ids = list(set(target_ids) - set(cached_ids))
+        
+        if missing_ids:
+            new_metrics = data.fetch_physics_arrays(missing_ids)
+            cached_metrics.extend(new_metrics)
+            cache['metrics'] = cached_metrics
+
+        required_metrics = [m for m in cached_metrics if m['step_id'] in target_ids]
+
+        fig_grf = graphics.create_grf_plot(required_metrics, selected_step_id, overlay_mode=is_overlay)
+        fig_cop = graphics.create_cop_plot(required_metrics, selected_step_id, overlay_mode=is_overlay)
+
+        return fig_grf, fig_cop, cache
+
+    # C. UPDATE WALKWAY PLOT
+    @app.callback(
+        Output('walkway-plot', 'figure'),
+        [Input('filtered-data-store', 'data'),
+         Input('part-dd', 'value'),
+         Input('shoe-dd', 'value'),
+         Input('speed-dd', 'value'),
+         Input('selected-step-store', 'data'),
+         Input('isolate-pass-check', 'value')]        
+    )
+    def update_walkway_plot(filtered_data, part, shoe, speed, selected_step_id, isolate_mode):
+        if not filtered_data or not (part and shoe and speed):
+            return go.Figure()
+
+        trial, steps, df = data.fetch_trial_data(part, shoe, speed)
+        if not trial or df.empty: return go.Figure()
+
+        valid_ids = filtered_data.get('valid_ids', [])
+        
+        # Apply the master filter
+        df_filtered = df[df['id'].isin(valid_ids)]
+        
+        # Apply localized "Isolate Pass" logic on top of the master filter
+        if selected_step_id and ('isolate' in isolate_mode):
+            selected_step = next((s for s in steps if s.id == selected_step_id), None)
+            if selected_step and selected_step.pass_id is not None:
+                df_filtered = df_filtered[df_filtered['pass_id'] == selected_step.pass_id]
+
+        if df_filtered.empty:
+             return graphics.create_walkway_plot([], selected_step_id)
+
+        final_valid_ids = set(df_filtered['id'])
+        filtered_steps_list = [s for s in steps if s.id in final_valid_ids]
+
+        return graphics.create_walkway_plot(filtered_steps_list, selected_step_id)
+    
+    # D. UPDATE PRESSURE PLOTS
+    @app.callback(
+        [Output('heatmap-plot', 'figure'),
+         Output('histogram-plot', 'figure')],
+        [Input('selected-step-store', 'data'),
+         Input('color-scale-toggle', 'value')]
+    )
+    def update_pressure_plots(step_id, scale_mode):
+        #handle empty state
+        if not step_id:
+            return graphics.create_heatmap_and_histogram(None, None)
+            
+        #fetch the matrix
+        matrix = data.fetch_footstep_matrix(step_id)
+        
+        #determine the scaling mode
+        is_dynamic = (scale_mode == 'dynamic')
+        
+        #generate Plots with the toggle state passed down
+        return graphics.create_heatmap_and_histogram(matrix, step_id, dynamic_scale=is_dynamic)
+
+    # E. UPDATE IMAGE GRID
+    @app.callback(
+        Output('image-grid', 'children'),
+        [Input('filtered-data-store', 'data'),
+         Input('part-dd', 'value'),
+         Input('shoe-dd', 'value'),
+         Input('speed-dd', 'value'),
+         Input('selected-step-store', 'data')]
+    )
+    def update_image_grid(filtered_data, part, shoe, speed, selected_step_id):
+        if not filtered_data or not (part and shoe and speed):
+            return []
+
+        valid_ids = filtered_data.get('valid_ids', [])
+        trial, steps, df = data.fetch_trial_data(part, shoe, speed)
+        
+        if not trial or not steps:
+            return []
+
+        filtered_steps_list = [s for s in steps if s.id in valid_ids]
 
         grid_items = []
         for step in filtered_steps_list: 
@@ -70,11 +223,9 @@ def register_callbacks(app):
             )
             grid_items.append(item)
 
-        status = f"Trial: {part}-{shoe}-{speed} ({len(filtered_steps_list)} steps)"
-        return scatter_fig, rug_fig, grid_items, status, error_msg
+        return grid_items
 
-
-    # B. UNIFIED SELECTION (Unchanged)
+    # F. UNIFIED SELECTION
     @app.callback(
         Output('selected-step-store', 'data'),
         [Input('main-scatter', 'clickData'),
@@ -101,99 +252,7 @@ def register_callbacks(app):
         
         return no_update
 
-    # C. UPDATE PHYSICS PLOTS (GRF & COP with Ghost Lines)
-    @app.callback(
-        [Output('grf-plot', 'figure'),
-         Output('cop-plot', 'figure'),
-         Output('physics-cache', 'data')],
-        [Input('part-dd', 'value'),
-         Input('shoe-dd', 'value'),
-         Input('speed-dd', 'value'),
-         Input('selected-step-store', 'data'),
-         Input('physics-overlay-toggle', 'value'),
-         Input('filter-side', 'value'),
-         Input('filter-outlier', 'value'),
-         Input('filter-tile', 'value'),
-         Input('filter-pass', 'value'),
-         Input('query-input', 'value')],
-        [State('physics-cache', 'data')]
-    )
-    def update_physics(part, shoe, speed, selected_step_id, overlay_mode, 
-                       sides, outliers, tiles, passes, query_string, cache):
-        current_trial_key = f"{part}-{shoe}-{speed}"
-        if not cache or cache.get('trial_key') != current_trial_key:
-            cache = {'trial_key': current_trial_key, 'metrics': []}
-            
-        if not (part and shoe and speed):
-            return graphics.create_grf_plot([]), graphics.create_cop_plot([]), cache
-
-        trial, steps, df = data.fetch_trial_data(part, shoe, speed)
-        if not trial:
-            return graphics.create_grf_plot([]), graphics.create_cop_plot([]), cache
-        
-        df_filtered, _ = filter_dataframe(df, sides, outliers, tiles, passes, query_string)
-        if df_filtered.empty:
-            return graphics.create_grf_plot([]), graphics.create_cop_plot([]), cache
-
-        is_overlay = (overlay_mode == 'overlay')
-        target_ids = df_filtered['id'].tolist() if is_overlay else ([selected_step_id] if selected_step_id else [])
-
-        cached_metrics = cache.get('metrics', [])
-        cached_ids = [m['step_id'] for m in cached_metrics]
-        missing_ids = list(set(target_ids) - set(cached_ids))
-        
-        if missing_ids:
-            new_metrics = data.fetch_physics_arrays(missing_ids)
-            cached_metrics.extend(new_metrics)
-            cache['metrics'] = cached_metrics
-
-        required_metrics = [m for m in cached_metrics if m['step_id'] in target_ids]
-
-        fig_grf = graphics.create_grf_plot(required_metrics, selected_step_id, overlay_mode=is_overlay)
-        fig_cop = graphics.create_cop_plot(required_metrics, selected_step_id, overlay_mode=is_overlay)
-
-        return fig_grf, fig_cop, cache
-
-
-    # D. UPDATE WALKWAY PLOT
-    @app.callback(
-        Output('walkway-plot', 'figure'),
-        [Input('part-dd', 'value'),
-         Input('shoe-dd', 'value'),
-         Input('speed-dd', 'value'),
-         Input('selected-step-store', 'data'),
-         Input('filter-side', 'value'),
-         Input('filter-outlier', 'value'),
-         Input('filter-tile', 'value'),
-         Input('filter-pass', 'value'),
-         Input('isolate-pass-check', 'value'),
-         Input('apply-query-btn', 'n_clicks'), 
-         Input('query-input', 'value')]        
-    )
-    def update_walkway(part, shoe, speed, selected_step_id, sides, outliers, tiles, passes, isolate_mode, apply_clicks, query_string):
-        if not (part and shoe and speed):
-            return go.Figure()
-
-        trial, steps, df = data.fetch_trial_data(part, shoe, speed)
-        if not trial: return go.Figure()
-
-        # The walkway ignores the error_msg output (it is already handled by update_views)
-        df_filtered, _ = filter_dataframe(df, sides, outliers, tiles, passes, query_string)
-        
-        if selected_step_id and ('isolate' in isolate_mode):
-            selected_step = next((s for s in steps if s.id == selected_step_id), None)
-            if selected_step and selected_step.pass_id is not None:
-                df_filtered = df_filtered[df_filtered['pass_id'] == selected_step.pass_id]
-
-        if df_filtered.empty:
-             return graphics.create_walkway_plot([], selected_step_id)
-
-        valid_ids = set(df_filtered['id'])
-        filtered_steps_list = [s for s in steps if s.id in valid_ids]
-
-        return graphics.create_walkway_plot(filtered_steps_list, selected_step_id)
-
-    # E. MANAGE PASS SELECTOR
+    # G. MANAGE PASS SELECTOR
     @app.callback(
         [Output('filter-pass', 'options'),
          Output('filter-pass', 'value')],
@@ -210,28 +269,7 @@ def register_callbacks(app):
 
         return [], []
 
-    # F. UPDATE DETAIL VIEWS (Heatmap & Histogram)
-    @app.callback(
-        [Output('heatmap-plot', 'figure'),
-         Output('histogram-plot', 'figure')],
-        [Input('selected-step-store', 'data'),
-         Input('color-scale-toggle', 'value')]
-    )
-    def update_step_details(step_id, scale_mode):
-        #handle empty state
-        if not step_id:
-            return graphics.create_heatmap_and_histogram(None, None)
-            
-        #fetch the matrix
-        matrix = data.fetch_footstep_matrix(step_id)
-        
-        #determine the scaling mode
-        is_dynamic = (scale_mode == 'dynamic')
-        
-        #generate Plots with the toggle state passed down
-        return graphics.create_heatmap_and_histogram(matrix, step_id, dynamic_scale=is_dynamic)
-
-    # G. CLEAR QUERY BUTTON LOGIC
+    # H. CLEAR QUERY BUTTON LOGIC
     @app.callback(
         Output('query-input', 'value'),
         Input('clear-query-btn', 'n_clicks'),
