@@ -393,3 +393,61 @@ def create_heatmap_and_histogram(matrix, step_id, dynamic_scale=True):
     )
 
     return heatmap_fig, hist_fig
+
+# =====================================================================
+# CROSS-TRIAL (PHASE 2) PLOTS
+# =====================================================================
+
+def create_box_plot(df, y_col, x_col, color_col):
+    if df.empty:
+        return go.Figure(layout=get_empty_physics_layout("Box Plot - No Data"))
+    
+    color_arg = color_col if color_col != 'none' else None
+    
+    fig = px.box(
+        df, 
+        x=x_col, 
+        y=y_col, 
+        color=color_arg,
+        points="all",
+        title=f"Distribution of {y_col} by {x_col}",
+        color_discrete_map=COLOR_MAP,
+        # NEW: Secretly embed the trial identifiers into every point!
+        custom_data=['participant_id', 'footwear', 'speed'] 
+    )
+    
+    fig.update_layout(
+        margin=dict(l=40, r=20, t=40, b=40),
+        plot_bgcolor='#f9f9f9',
+        legend_title_text=color_col.capitalize() if color_arg else "",
+        xaxis_title=x_col.replace('_', ' ').title(),
+        yaxis_title=y_col.replace('_', ' ').title()
+    )
+    return fig
+
+def create_violin_plot(df, y_col, x_col, color_col):
+    if df.empty:
+        return go.Figure(layout=get_empty_physics_layout("Violin Plot - No Data"))
+    
+    color_arg = color_col if color_col != 'none' else None
+    
+    fig = px.violin(
+        df, 
+        x=x_col, 
+        y=y_col, 
+        color=color_arg,
+        box=True, 
+        title=f"Density Shape of {y_col} by {x_col}",
+        color_discrete_map=COLOR_MAP,
+        # NEW: Secretly embed the trial identifiers into every point!
+        custom_data=['participant_id', 'footwear', 'speed']
+    )
+    
+    fig.update_layout(
+        margin=dict(l=40, r=20, t=40, b=40),
+        plot_bgcolor='#f9f9f9',
+        legend_title_text=color_col.capitalize() if color_arg else "",
+        xaxis_title=x_col.replace('_', ' ').title(),
+        yaxis_title=y_col.replace('_', ' ').title()
+    )
+    return fig

@@ -79,6 +79,49 @@ def fetch_trial_data(part, shoe, speed):
         df = pd.DataFrame(data_list)
         return trial, steps_list_for_grid, df
 
+def fetch_crosstrial_data(part_ids=None, shoes=None, speeds=None):
+    """
+    PHASE 2 ENGINE: Fetches a flattened, cross-trial dataset for aggregate analysis.
+    Uses SQL JOINs to combine demographics, trial metadata, and pre-computed physics scalars.
+    Intentionally excludes heavy JSON arrays to maintain blazing-fast memory performance.
+    """
+    with Session(engine) as session:
+        # 1. Select the specific columns we need across all three tables
+        stmt = select(
+            Footstep.id.label('footstep_id'),
+            Footstep.side,
+            Footstep.is_outlier,
+            Footstep.mean_grf,
+            Footstep.peak_grf,
+            Footstep.stance_duration_frames,
+            Footstep.foot_length,
+            Trial.id.label('trial_id'),
+            Trial.footwear,
+            Trial.speed,
+            Participant.id.label('participant_id'),
+            Participant.sex,
+            Participant.age,
+            Participant.weight_kg
+        ).join(Trial, Footstep.trial_id == Trial.id)\
+         .join(Participant, Trial.participant_id == Participant.id)
+        
+        #2 apply dynamic filters using the SQL IN operator
+        if part_ids:
+            stmt = stmt.where(Participant.id.in_(part_ids))
+        if shoes:
+            stmt = stmt.where(Trial.footwear.in_(shoes))
+        if speeds:
+            stmt = stmt.where(Trial.speed.in_(speeds))
+            
+        #3 execute and load directly into a Pandas DataFrame
+        results = session.execute(stmt).all()
+        
+        #4 convert the SQLAlchemy Row objects to dictionaries, then to a DataFrame
+        data_list = [dict(row._mapping) for row in results]
+        df = pd.DataFrame(data_list)
+        
+        return df
+
 def fetch_physics_arrays(step_ids):
     """
     Fetches the pre-computed JSON physics arrays directly from the database.
