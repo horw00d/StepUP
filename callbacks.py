@@ -17,6 +17,9 @@ import graphics
 # F. UNIFIED SELECTION             -> Maps clicks across all plots to a single step ID
 # G. MANAGE PASS SELECTOR          -> Dynamically populates pass dropdown
 # H. CLEAR QUERY BUTTON LOGIC      -> Resets Advanced Query Input
+# I. UPDATE CROSS-TRIAL PLOTS      -> Renders Box/Violin for multi-trial comparisons
+# J. THE BRIDGE (Part 1: Capture the Click)
+# K. THE BRIDGE (Part 2: Execute Navigation)
 # =====================================================================
 
 def register_callbacks(app):
@@ -277,3 +280,71 @@ def register_callbacks(app):
     )
     def clear_query(n_clicks):
         return ""
+
+    # =====================================================================
+    # CROSS-TRIAL CALLBACKS (PHASE 2)
+    # =====================================================================
+
+    # I. UPDATE CROSS-TRIAL PLOTS (Buffered Execution)
+    @app.callback(
+        [Output('ct-box-plot', 'figure'),
+         Output('ct-violin-plot', 'figure')],
+        [Input('ct-update-btn', 'n_clicks')], # the only trigger
+        [State('ct-part-dd', 'value'),
+         State('ct-shoe-dd', 'value'),
+         State('ct-speed-dd', 'value'),
+         State('ct-metric-dd', 'value'),
+         State('ct-group-dd', 'value'),
+         State('ct-color-dd', 'value')]
+    )
+    def update_cross_trial_plots(n_clicks, parts, shoes, speeds, metric, group, color):
+        
+        # 1. Fetch the multi-trial flat dataframe using the selected demographic filters
+        df = data.fetch_crosstrial_data(part_ids=parts, shoes=shoes, speeds=speeds)
+        
+        # 2. Handle empty datasets cleanly
+        if df.empty:
+            empty_fig = graphics.get_empty_physics_layout("No Data Matching Criteria")
+            return go.Figure(layout=empty_fig), go.Figure(layout=empty_fig)
+            
+        # 3. Generate the aggregations via Plotly Express
+        box_fig = graphics.create_box_plot(df, y_col=metric, x_col=group, color_col=color)
+        violin_fig = graphics.create_violin_plot(df, y_col=metric, x_col=group, color_col=color)
+        
+        return box_fig, violin_fig
+    
+    # J. THE BRIDGE (Part 1: Capture the Click)
+    @app.callback(
+        Output('bridge-store', 'data'),
+        [Input('ct-box-plot', 'clickData'),
+         Input('ct-violin-plot', 'clickData')],
+        prevent_initial_call=True
+    )
+    def capture_cross_trial_click(box_click, violin_click):
+        trigger_id = ctx.triggered_id
+        click_data = box_click if trigger_id == 'ct-box-plot' else violin_click
+        
+        # Extract the embedded custom_data from the clicked point
+        if click_data and 'points' in click_data:
+            point = click_data['points'][0]
+            if 'customdata' in point:
+                return {
+                    'part': point['customdata'][0],
+                    'shoe': point['customdata'][1],
+                    'speed': point['customdata'][2]
+                }
+        return no_update
+
+    # K. THE BRIDGE (Part 2: Execute Navigation)
+    @app.callback(
+        [Output('part-dd', 'value'),
+         Output('shoe-dd', 'value'),
+         Output('speed-dd', 'value'),
+         Output('master-tabs', 'value')], # forces the UI to flip back to Single-Trial
+        Input('bridge-store', 'data'),
+        prevent_initial_call=True
+    )
+    def execute_drilldown(bridge_data):
+        if bridge_data:
+            return bridge_data['part'], bridge_data['shoe'], bridge_data['speed'], 'tab-single-trial'
+        return no_update
