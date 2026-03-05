@@ -20,21 +20,27 @@ def get_dropdown_options(model_col):
         results = session.scalars(select(distinct(model_col)).order_by(model_col)).all()
         return [{'label': str(x), 'value': str(x)} for x in results]
 
+OPTIONS_PART = get_dropdown_options(Participant.id)
+OPTIONS_SHOE = get_dropdown_options(Trial.footwear)
+OPTIONS_SPEED = get_dropdown_options(Trial.speed)
+
 # Main layout function
 def create_layout():
     return html.Div(style={'height': '100vh', 'display': 'flex', 'flexDirection': 'column', 'padding': '20px'}, children=[
         
-        # Store
+        # Stores
         dcc.Store(id='selected-step-store'),
         dcc.Store(id='physics-cache', storage_type='memory'),
+        dcc.Store(id='filtered-data-store'), # master data store
 
         # Header
         html.Div(style={'borderBottom': '1px solid #ddd', 'paddingBottom': '15px', 'marginBottom': '10px'}, children=[
             html.H2("StepUP: Trial Analysis Dashboard", style={'display': 'inline-block', 'marginRight': '30px'}),
             html.Div(style={'display': 'flex', 'gap': '20px', 'alignItems': 'center'}, children=[
-                dcc.Dropdown(id='part-dd', options=get_dropdown_options(Participant.id), value='001', placeholder="Participant", style={'width': '120px'}),
-                dcc.Dropdown(id='shoe-dd', options=get_dropdown_options(Trial.footwear), value='BF', placeholder="Footwear", style={'width': '120px'}),
-                dcc.Dropdown(id='speed-dd', options=get_dropdown_options(Trial.speed), value='W1', placeholder="Speed", style={'width': '120px'}),
+                #dynamically set the initial value to the first available option
+                dcc.Dropdown(id='part-dd', options=OPTIONS_PART, value=OPTIONS_PART[0]['value'] if OPTIONS_PART else None, placeholder="Participant", style={'width': '120px'}),
+                dcc.Dropdown(id='shoe-dd', options=OPTIONS_SHOE, value=OPTIONS_SHOE[0]['value'] if OPTIONS_SHOE else None, placeholder="Footwear", style={'width': '120px'}),
+                dcc.Dropdown(id='speed-dd', options=OPTIONS_SPEED, value=OPTIONS_SPEED[0]['value'] if OPTIONS_SPEED else None, placeholder="Speed", style={'width': '120px'}),
                 html.Div(id='trial-status', style={'marginLeft': 'auto', 'fontWeight': 'bold', 'color': '#555'})
             ])
         ]),

@@ -5,10 +5,7 @@ from scipy.signal import butter, filtfilt
 from sqlalchemy import select
 from models import Footstep
 from database import engine, Session
-
-SENSOR_AREA_M2 = 2.5e-5 
-SENSOR_SIDE_CM = 0.5 
-SAMPLING_FREQ = 100 
+from config import SENSOR_AREA_M2, SENSOR_SIDE_CM, SAMPLING_FREQ
 
 def safe_filtfilt(b, a, signal):
     """Safely applies filtfilt, bypassing if the array is too short."""
