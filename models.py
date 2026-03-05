@@ -1,5 +1,5 @@
 from typing import List, Optional
-from sqlalchemy import String, Integer, Float, Boolean, ForeignKey, create_engine, UniqueConstraint, Index
+from sqlalchemy import String, Integer, Float, Boolean, ForeignKey, UniqueConstraint, Index, JSON
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 # Legacy/1.4 style for compatibility with this environment
@@ -63,6 +63,16 @@ class Footstep(Base):
     is_outlier: Mapped[bool] = mapped_column(Boolean, default=False)
     is_incomplete: Mapped[bool] = mapped_column(Boolean, default=False)
     exclude: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    #pre-computed physics columns
+    peak_grf: Mapped[float] = mapped_column(Float, nullable=True)
+    stance_duration_frames: Mapped[int] = mapped_column(Integer, nullable=True)
+    
+    #full time-series arrays as JSON strings
+    time_pct_array: Mapped[list] = mapped_column(JSON, nullable=True)
+    grf_array: Mapped[list] = mapped_column(JSON, nullable=True)
+    cop_ml_array: Mapped[list] = mapped_column(JSON, nullable=True)
+    cop_ap_array: Mapped[list] = mapped_column(JSON, nullable=True)
 
     trial: Mapped["Trial"] = relationship(back_populates="footsteps")
 

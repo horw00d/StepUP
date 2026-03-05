@@ -105,7 +105,7 @@ def register_callbacks(app):
     @app.callback(
         [Output('grf-plot', 'figure'),
          Output('cop-plot', 'figure'),
-         Output('physics-cache', 'data')], # <-- New Output
+         Output('physics-cache', 'data')],
         [Input('part-dd', 'value'),
          Input('shoe-dd', 'value'),
          Input('speed-dd', 'value'),
@@ -116,17 +116,14 @@ def register_callbacks(app):
          Input('filter-tile', 'value'),
          Input('filter-pass', 'value'),
          Input('query-input', 'value')],
-        [State('physics-cache', 'data')] # <-- Access the current cache
+        [State('physics-cache', 'data')]
     )
     def update_physics(part, shoe, speed, selected_step_id, overlay_mode, 
                        sides, outliers, tiles, passes, query_string, cache):
-        
-        #1 initialize Cache if empty or if the user changed the Trial
         current_trial_key = f"{part}-{shoe}-{speed}"
         if not cache or cache.get('trial_key') != current_trial_key:
             cache = {'trial_key': current_trial_key, 'metrics': []}
             
-        #2 handle empty states
         if not (part and shoe and speed):
             return graphics.create_grf_plot([]), graphics.create_cop_plot([]), cache
 
@@ -138,37 +135,20 @@ def register_callbacks(app):
         if df_filtered.empty:
             return graphics.create_grf_plot([]), graphics.create_cop_plot([]), cache
 
-        #3 determine which IDs the plot actually needs right now
         is_overlay = (overlay_mode == 'overlay')
-        if is_overlay:
-            target_ids = df_filtered['id'].tolist()
-        else:
-            target_ids = [selected_step_id] if selected_step_id else []
+        target_ids = df_filtered['id'].tolist() if is_overlay else ([selected_step_id] if selected_step_id else [])
 
-        #4 find what we're missing
         cached_metrics = cache.get('metrics', [])
         cached_ids = [m['step_id'] for m in cached_metrics]
-        
-        #set subtraction for missing IDs (the ones we need but don't have cached yet)
         missing_ids = list(set(target_ids) - set(cached_ids))
         
         if missing_ids:
-            new_metrics = physics.get_batch_physics(missing_ids)
-            
-            #convert NumPy arrays to JSON-serializable Python lists
-            for m in new_metrics:
-                m['time_pct'] = m['time_pct'].tolist()
-                m['grf'] = m['grf'].tolist()
-                m['cop_ml'] = m['cop_ml'].tolist()
-                m['cop_ap'] = m['cop_ap'].tolist()
-                cached_metrics.append(m) # Add to our cache
-                
+            new_metrics = data.fetch_physics_arrays(missing_ids)
+            cached_metrics.extend(new_metrics)
             cache['metrics'] = cached_metrics
 
-        #5 extract only the metrics needed for the current view
         required_metrics = [m for m in cached_metrics if m['step_id'] in target_ids]
 
-        #6 generate Plots
         fig_grf = graphics.create_grf_plot(required_metrics, selected_step_id, overlay_mode=is_overlay)
         fig_cop = graphics.create_cop_plot(required_metrics, selected_step_id, overlay_mode=is_overlay)
 

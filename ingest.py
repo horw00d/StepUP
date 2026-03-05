@@ -1,8 +1,10 @@
 import os
 import pandas as pd
+import numpy as np
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from models import Base, Participant, Trial, Footstep
+from physics import compute_tensor_physics
 
 DATABASE_URL = "sqlite:///stepup.db"
 DATA_ROOT = "/home/cameron/StepUP-P150/"
@@ -54,47 +56,92 @@ def ingest_data():
             participant_id = parts[-3]
             
             # Create the Trial record
+            npz_path = os.path.join(root, "pipeline_1.npz")
             trial = Trial(
                 participant_id=participant_id,
                 footwear=footwear_cond,
                 speed=speed_cond,
-                file_path=os.path.join(root, "pipeline_1.npz") # Storing path
+                file_path=npz_path 
             )
             session.add(trial)
-            session.flush() # Flush to assign trial.id
+            session.flush() 
             
-            # Load Footstep Metadata CSV
+            # Load metadata
             csv_path = os.path.join(root, "metadata.csv")
             df_steps = pd.read_csv(csv_path)
             
-            # Bulk create footsteps
             footsteps_batch = []
-            for _, row in df_steps.iterrows():
-                step = Footstep(
-                    trial_id=trial.id,
-                    footstep_index=row['FootstepID'],
-                    pass_id=row['PassID'],
-                    start_frame=row['StartFrame'],
-                    end_frame=row['EndFrame'],
-                    side=row['Side'],
-                    orientation=row['Orientation'],
-                    foot_length=row['FootLength'],
-                    foot_width=row['FootWidth'],
-                    rotation_angle=row['RotationAngle'],
-                    box_xmin=row['Xmin'],
-                    box_xmax=row['Xmax'],
-                    box_ymin=row['Ymin'],
-                    box_ymax=row['Ymax'],
-                    r_score=row['Rscore'],
-                    mean_grf=row['MeanGRF'],
-                    is_outlier=bool(row['Outlier']),
-                    is_incomplete=bool(row['Incomplete']),
-                    exclude=bool(row['Exclude'])
-                )
-                footsteps_batch.append(step)
+            
+            # --- NEW: Safely open .npz and process inside the context manager ---
+            if os.path.exists(npz_path):
+                with np.load(npz_path) as data:
+                    main_tensor = data['arr_0'] if 'arr_0' in data else None
+                    
+                    for _, row in df_steps.iterrows():
+                        idx = row['FootstepID']
+                        physics_data = None
+                        
+                        try:
+                            # Extract tensor depending on how the NPZ was saved
+                            if main_tensor is not None:
+                                step_tensor = main_tensor[idx]
+                            else:
+                                step_tensor = data[str(idx)]
+                                
+                            # Calculate math
+                            physics_data = compute_tensor_physics(step_tensor)
+                            
+                        except Exception as e:
+                            print(f"Warning: Could not process tensor {idx} in {npz_path}: {e}")
+
+                        # Build the Footstep object
+                        step = Footstep(
+                            trial_id=trial.id,
+                            footstep_index=idx,
+                            pass_id=row['PassID'],
+                            start_frame=row['StartFrame'],
+                            end_frame=row['EndFrame'],
+                            side=row['Side'],
+                            orientation=row['Orientation'],
+                            foot_length=row['FootLength'],
+                            foot_width=row['FootWidth'],
+                            rotation_angle=row['RotationAngle'],
+                            box_xmin=row['Xmin'],
+                            box_xmax=row['Xmax'],
+                            box_ymin=row['Ymin'],
+                            box_ymax=row['Ymax'],
+                            r_score=row['Rscore'],
+                            mean_grf=row['MeanGRF'],
+                            is_outlier=bool(row['Outlier']),
+                            is_incomplete=bool(row['Incomplete']),
+                            exclude=bool(row['Exclude']),
+                            
+                            # Safely inject the computed data
+                            peak_grf=physics_data['peak_grf'] if physics_data else None,
+                            stance_duration_frames=physics_data['stance_duration_frames'] if physics_data else None,
+                            time_pct_array=physics_data['time_pct_array'] if physics_data else None,
+                            grf_array=physics_data['grf_array'] if physics_data else None,
+                            cop_ml_array=physics_data['cop_ml_array'] if physics_data else None,
+                            cop_ap_array=physics_data['cop_ap_array'] if physics_data else None
+                        )
+                        footsteps_batch.append(step)
+                        
+            # If no .npz exists, still ingest the metadata with None for physics
+            else:
+                for _, row in df_steps.iterrows():
+                    step = Footstep(
+                        trial_id=trial.id, footstep_index=row['FootstepID'], pass_id=row['PassID'],
+                        start_frame=row['StartFrame'], end_frame=row['EndFrame'], side=row['Side'],
+                        orientation=row['Orientation'], foot_length=row['FootLength'], foot_width=row['FootWidth'],
+                        rotation_angle=row['RotationAngle'], box_xmin=row['Xmin'], box_xmax=row['Xmax'],
+                        box_ymin=row['Ymin'], box_ymax=row['Ymax'], r_score=row['Rscore'],
+                        mean_grf=row['MeanGRF'], is_outlier=bool(row['Outlier']), 
+                        is_incomplete=bool(row['Incomplete']), exclude=bool(row['Exclude'])
+                    )
+                    footsteps_batch.append(step)
             
             session.add_all(footsteps_batch)
-            print(f"Processed Trial: {participant_id} - {footwear_cond} - {speed_cond} ({len(footsteps_batch)} steps)")
+            print(f"Processed Trial: {participant_id} - {footwear_cond} - {speed_cond} ({len(footsteps_batch)} steps with Physics)")
             
     session.commit()
     print("Ingestion complete.")

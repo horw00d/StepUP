@@ -20,14 +20,14 @@ def fetch_trial_data(part, shoe, speed):
     Fetches the Trial and Footsteps, returning a processed DataFrame and the raw steps list.
     """
     with Session(engine) as session:
-        #1 fetch trial
+        # 1. Fetch trial
         stmt = select(Trial).where(Trial.participant_id == part, Trial.footwear == shoe, Trial.speed == speed)
         trial = session.scalar(stmt)
         
         if not trial:
-            return None, [], pd.DataFrame() # Return empty DF
+            return None, [], pd.DataFrame() 
 
-        #2 get specific columns as tuples
+        # 2. Get specific columns (Now including new physics scalars)
         stmt = select(
             Footstep.id,
             Footstep.footstep_index,
@@ -43,49 +43,69 @@ def fetch_trial_data(part, shoe, speed):
             Footstep.box_xmin,
             Footstep.box_xmax,
             Footstep.box_ymin,
-            Footstep.box_ymax
+            Footstep.box_ymax,
+            Footstep.peak_grf,               # <-- NEW SCALAR
+            Footstep.stance_duration_frames  # <-- NEW SCALAR
         ).where(Footstep.trial_id == trial.id).order_by(Footstep.footstep_index)
         
         results = session.execute(stmt).all()
         
-        #3 build dataframe
+        # 3. Build dataframe (Keep your existing tile logic exactly the same)
         data_list = []
         steps_list_for_grid = []
         
         for row in results:
-            row_dict = row._mapping
+            row_dict = dict(row._mapping)
             
-            # DataFrame Dict
-            clean_dict = dict(row_dict)
             if row.box_xmin is not None:
-                # Convert sensor units to meters
                 x_center = ((row.box_xmin + row.box_xmax) / 2) * SENSOR_SIZE
                 y_center = ((row.box_ymin + row.box_ymax) / 2) * SENSOR_SIZE
                 
-                # Determine Row (0-5) and Col (0-1)
-                # Clamp to max indices to prevent edge case errors
                 col = min(1, int(x_center // TILE_SIZE))
                 row_idx = min(5, int(y_center // TILE_SIZE))
-                
-                # 1-based Tile ID (1-12)
                 tile_id = (row_idx * 2) + col + 1
-                clean_dict['tile_id'] = tile_id
                 
-                # Add to the simple namespace object too (for the walkway/grid)
-                # We create a new SimpleNamespace to avoid mutating the read-only row
+                row_dict['tile_id'] = tile_id
+                
                 step_obj = SimpleNamespace(**row_dict)
-                step_obj.tile_id = tile_id
                 steps_list_for_grid.append(step_obj)
             else:
-                clean_dict['tile_id'] = -1 # Unknown
+                row_dict['tile_id'] = -1 
                 steps_list_for_grid.append(SimpleNamespace(**row_dict))
 
-            clean_dict['is_outlier'] = "Outlier" if row_dict['is_outlier'] else "Normal"
-            data_list.append(clean_dict)
+            row_dict['is_outlier'] = "Outlier" if row_dict['is_outlier'] else "Normal"
+            data_list.append(row_dict)
 
         df = pd.DataFrame(data_list)
-        
         return trial, steps_list_for_grid, df
+
+def fetch_physics_arrays(step_ids):
+    """
+    Fetches the pre-computed JSON physics arrays directly from the database.
+    """
+    if not step_ids: return []
+    
+    with Session(engine) as session:
+        stmt = select(
+            Footstep.id,
+            Footstep.time_pct_array,
+            Footstep.grf_array,
+            Footstep.cop_ml_array,
+            Footstep.cop_ap_array
+        ).where(Footstep.id.in_(step_ids))
+        
+        results = session.execute(stmt).all()
+        
+        metrics = []
+        for row in results:
+            metrics.append({
+                "step_id": row.id,
+                "time_pct": row.time_pct_array or [],
+                "grf": row.grf_array or [],
+                "cop_ml": row.cop_ml_array or [],
+                "cop_ap": row.cop_ap_array or []
+            })
+        return metrics
 
 def fetch_step_by_id(step_id):
     """Fetches a single footstep by ID."""
