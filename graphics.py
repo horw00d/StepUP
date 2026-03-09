@@ -412,7 +412,7 @@ def create_box_plot(df, y_col, x_col, color_col):
         points="all",
         title=f"Distribution of {y_col} by {x_col}",
         color_discrete_map=COLOR_MAP,
-        # NEW: Secretly embed the trial identifiers into every point!
+        # embed the trial identifiers into every point!
         custom_data=['participant_id', 'footwear', 'speed'] 
     )
     
@@ -439,7 +439,7 @@ def create_violin_plot(df, y_col, x_col, color_col):
         box=True, 
         title=f"Density Shape of {y_col} by {x_col}",
         color_discrete_map=COLOR_MAP,
-        # NEW: Secretly embed the trial identifiers into every point!
+        # embed the trial identifiers into every point
         custom_data=['participant_id', 'footwear', 'speed']
     )
     
@@ -449,5 +449,76 @@ def create_violin_plot(df, y_col, x_col, color_col):
         legend_title_text=color_col.capitalize() if color_arg else "",
         xaxis_title=x_col.replace('_', ' ').title(),
         yaxis_title=y_col.replace('_', ' ').title()
+    )
+    return fig
+
+def create_bivariate_scatter_plot(df, y_col, x_col, color_col):
+    """
+    Generates a Bivariate Scatter Plot to show correlations between two continuous metrics.
+    Includes an OLS trendline for instant regression analysis.
+    """
+    if df.empty:
+        return go.Figure(layout=get_empty_physics_layout("Scatter Plot - No Data"))
+    
+    color_arg = color_col if color_col != 'none' else None
+    
+    fig = px.scatter(
+        df, 
+        x=x_col, 
+        y=y_col, 
+        color=color_arg,
+        trendline="ols", #instantly draw the regression line for each colored group
+        title=f"Correlation of {x_col.replace('_', ' ').title()} and {y_col.replace('_', ' ').title()}",
+        color_discrete_map=COLOR_MAP,
+        custom_data=['participant_id', 'footwear', 'speed'] #keeps the Drilldown bridge intact
+    )
+    
+    fig.update_layout(
+        margin=dict(l=40, r=20, t=40, b=40),
+        plot_bgcolor='#f9f9f9',
+        legend_title_text=color_col.capitalize() if color_arg else "",
+        xaxis_title=x_col.replace('_', ' ').title(),
+        yaxis_title=y_col.replace('_', ' ').title()
+    )
+    return fig
+
+def create_aggregate_waveform_plot(time_pct, mean_grf, upper_bound, lower_bound):
+    """
+    Renders a continuous mean waveform surrounded by a shaded standard deviation band.
+    """
+    if time_pct is None:
+        return go.Figure(layout=get_empty_physics_layout("Waveform - No Data"))
+
+    fig = go.Figure()
+
+    # 1 invisible Upper Bound
+    fig.add_trace(go.Scatter(
+        x=time_pct, y=upper_bound,
+        mode='lines', line=dict(width=0), showlegend=False,
+        hoverinfo='skip'
+    ))
+    
+    # 2 lower Bound (Fills space up to the Upper Bound)
+    fig.add_trace(go.Scatter(
+        x=time_pct, y=lower_bound,
+        mode='lines', line=dict(width=0),
+        fill='tonexty', fillcolor='rgba(0, 123, 255, 0.2)', showlegend=False,
+        hoverinfo='skip'
+    ))
+    
+    # 3 Solid Mean Line
+    fig.add_trace(go.Scatter(
+        x=time_pct, y=mean_grf,
+        mode='lines', line=dict(color='rgba(0, 123, 255, 1)', width=3),
+        name='Mean GRF'
+    ))
+
+    fig.update_layout(
+        title="Aggregate GRF Waveform (plus minus Std Dev)",
+        xaxis_title="% Stance Phase",
+        yaxis_title="Ground Reaction Force (N)",
+        plot_bgcolor='#f9f9f9',
+        margin=dict(l=40, r=20, t=40, b=40),
+        showlegend=False
     )
     return fig

@@ -143,6 +143,7 @@ def get_single_trial_layout():
 # =====================================================================
 def get_cross_trial_layout():
     return html.Div(children=[
+        
         # --- ZONE 1: COHORT SELECTION ---
         html.Div(style={'backgroundColor': '#eef2f5', 'padding': '15px', 'borderRadius': '5px', 'marginBottom': '20px', 'display': 'flex', 'gap': '20px'}, children=[
             html.Div(style={'flex': '1'}, children=[
@@ -158,15 +159,20 @@ def get_cross_trial_layout():
                 dcc.Dropdown(id='ct-speed-dd', options=OPTIONS_SPEED, multi=True, placeholder="All Speeds")
             ])
         ]),
-        
+
         # --- ZONE 2: PLOT CONFIGURATION & EXECUTION ---
-        html.Div(style={'display': 'flex', 'gap': '20px', 'marginBottom': '20px', 'alignItems': 'stretch'}, children=[
+        html.Div(style={'display': 'flex', 'gap': '15px', 'marginBottom': '20px', 'alignItems': 'stretch'}, children=[
             html.Div(style={'flex': '1', 'border': '1px solid #ccc', 'padding': '10px', 'borderRadius': '5px', 'backgroundColor': '#f9f9f9'}, children=[
-                html.Label("Metric (Y-Axis):", style={'fontWeight': 'bold', 'fontSize': '0.9em'}),
+                html.Label("Primary Metric (Y-Axis):", style={'fontWeight': 'bold', 'fontSize': '0.9em'}),
                 dcc.Dropdown(id='ct-metric-dd', options=FEATURE_OPTIONS, value='peak_grf', clearable=False)
             ]),
+            # NEW: Scatter X-Axis
             html.Div(style={'flex': '1', 'border': '1px solid #ccc', 'padding': '10px', 'borderRadius': '5px', 'backgroundColor': '#f9f9f9'}, children=[
-                html.Label("Group By (X-Axis):", style={'fontWeight': 'bold', 'fontSize': '0.9em'}),
+                html.Label("Scatter Metric (X-Axis):", style={'fontWeight': 'bold', 'fontSize': '0.9em'}),
+                dcc.Dropdown(id='ct-scatter-x-dd', options=FEATURE_OPTIONS, value='stance_duration_frames', clearable=False)
+            ]),
+            html.Div(style={'flex': '1', 'border': '1px solid #ccc', 'padding': '10px', 'borderRadius': '5px', 'backgroundColor': '#f9f9f9'}, children=[
+                html.Label("Group By (Distributions):", style={'fontWeight': 'bold', 'fontSize': '0.9em'}),
                 dcc.Dropdown(id='ct-group-dd', options=[
                     {'label': 'Footwear Type', 'value': 'footwear'},
                     {'label': 'Walking Speed', 'value': 'speed'},
@@ -184,8 +190,7 @@ def get_cross_trial_layout():
                     {'label': 'Side (Left/Right)', 'value': 'side'}
                 ], value='speed', clearable=False)
             ]),
-            #execute button
-            html.Div(style={'flex': '0.5', 'display': 'flex', 'alignItems': 'flex-end'}, children=[
+            html.Div(style={'flex': '0.7', 'display': 'flex', 'alignItems': 'flex-end'}, children=[
                 html.Button('Update Charts', id='ct-update-btn', n_clicks=0, style={
                     'height': '100%', 'width': '100%', 'minHeight': '50px', 
                     'backgroundColor': '#28a745', 'color': 'white', 'border': 'none', 
@@ -194,15 +199,29 @@ def get_cross_trial_layout():
             ])
         ]),
 
-        # --- ZONE 3: VISUALIZATIONS ---
-        html.Div(style={'display': 'flex', 'gap': '20px', 'height': '500px'}, children=[
-            # Box Plot Container
-            html.Div(style={'flex': '1', 'border': '1px solid #ddd', 'borderRadius': '5px', 'backgroundColor': 'white', 'padding': '10px'}, children=[
-                dcc.Graph(id='ct-box-plot', style={'height': '100%'})
+        # --- ZONE 3: VISUALIZATIONS (2x2 Grid)
+        html.Div(style={'display': 'flex', 'flexDirection': 'column', 'gap': '20px'}, children=[
+            
+            # Row 1: Distributions
+            html.Div(style={'display': 'flex', 'gap': '20px', 'height': '450px'}, children=[
+                html.Div(style={'flex': '1', 'border': '1px solid #ddd', 'borderRadius': '5px', 'backgroundColor': 'white', 'padding': '10px'}, children=[
+                    dcc.Graph(id='ct-box-plot', style={'height': '100%'})
+                ]),
+                html.Div(style={'flex': '1', 'border': '1px solid #ddd', 'borderRadius': '5px', 'backgroundColor': 'white', 'padding': '10px'}, children=[
+                    dcc.Graph(id='ct-violin-plot', style={'height': '100%'})
+                ])
             ]),
-            # Violin Plot Container
-            html.Div(style={'flex': '1', 'border': '1px solid #ddd', 'borderRadius': '5px', 'backgroundColor': 'white', 'padding': '10px'}, children=[
-                dcc.Graph(id='ct-violin-plot', style={'height': '100%'})
+            
+            # Row 2: Correlations and Time-Series
+            html.Div(style={'display': 'flex', 'gap': '20px', 'height': '450px'}, children=[
+                #Bivariate Scatter Plot
+                html.Div(style={'flex': '1', 'border': '1px solid #ddd', 'borderRadius': '5px', 'backgroundColor': 'white', 'padding': '10px'}, children=[
+                    dcc.Graph(id='ct-bivariate-scatter', style={'height': '100%'})
+                ]),
+                #Aggregate Waveform Plot
+                html.Div(style={'flex': '1', 'border': '1px solid #ddd', 'borderRadius': '5px', 'backgroundColor': 'white', 'padding': '10px'}, children=[
+                    dcc.Graph(id='ct-aggregate-waveform', style={'height': '100%'})
+                ])
             ])
         ])
     ])
@@ -218,7 +237,7 @@ def create_layout():
         dcc.Store(id='physics-cache', storage_type='memory'),
         dcc.Store(id='filtered-data-store'),
         
-        # The Bridge Store: Used to command the single-trial view to load a specific trial
+        #bridge store: Used to command the single-trial view to load a specific trial
         dcc.Store(id='bridge-store'), 
 
         html.H2("StepUP Analysis", style={'marginBottom': '20px'}),
