@@ -1,12 +1,13 @@
 import os
 import pandas as pd
 import numpy as np
-from sqlalchemy import select, distinct
+from sqlalchemy import select, distinct, text
 from types import SimpleNamespace
 from database import Session, engine
 from models import Trial, Footstep, Participant
 from config import SENSOR_SIZE, TILE_SIZE
 from functools import lru_cache
+import time
 
 def get_dropdown_options(model_col):
     """Reusable helper for populating dropdowns."""
@@ -20,14 +21,14 @@ def fetch_trial_data(part, shoe, speed):
     Fetches the Trial and Footsteps, returning a processed DataFrame and the raw steps list.
     """
     with Session(engine) as session:
-        # 1. Fetch trial
+        # 1 fetch trial
         stmt = select(Trial).where(Trial.participant_id == part, Trial.footwear == shoe, Trial.speed == speed)
         trial = session.scalar(stmt)
         
         if not trial:
             return None, [], pd.DataFrame() 
 
-        # 2. Get specific columns (Now including new physics scalars)
+        # 2 get specific columns (Now including new physics scalars)
         stmt = select(
             Footstep.id,
             Footstep.footstep_index,
@@ -50,7 +51,7 @@ def fetch_trial_data(part, shoe, speed):
         
         results = session.execute(stmt).all()
         
-        # 3. Build dataframe (Keep your existing tile logic exactly the same)
+        # 3 build dataframe (Keep your existing tile logic exactly the same)
         data_list = []
         steps_list_for_grid = []
         
@@ -79,22 +80,27 @@ def fetch_trial_data(part, shoe, speed):
         df = pd.DataFrame(data_list)
         return trial, steps_list_for_grid, df
 
-def fetch_crosstrial_data(part_ids=None, shoes=None, speeds=None):
+@lru_cache(maxsize=32)
+def cached_fetch_cross_trial_data(part_ids, shoes, speeds):
     """
-    PHASE 2 ENGINE: Fetches a flattened, cross-trial dataset for aggregate analysis.
-    Uses SQL JOINs to combine demographics, trial metadata, and pre-computed physics scalars.
-    Intentionally excludes heavy JSON arrays to maintain blazing-fast memory performance.
+    PRIVATE ENGINE: The actual SQL execution layer. 
+    Reverted to ORM syntax to test compilation and execution performance.
     """
-    with Session(engine) as session:
-        # 1. Select the specific columns we need across all three tables
+    with engine.connect() as conn: 
+        
         stmt = select(
             Footstep.id.label('footstep_id'),
+            Footstep.footstep_index,
+            Footstep.start_frame,
+            Footstep.r_score,
             Footstep.side,
             Footstep.is_outlier,
             Footstep.mean_grf,
             Footstep.peak_grf,
             Footstep.stance_duration_frames,
             Footstep.foot_length,
+            Footstep.foot_width,
+            Footstep.rotation_angle,
             Trial.id.label('trial_id'),
             Trial.footwear,
             Trial.speed,
@@ -105,22 +111,30 @@ def fetch_crosstrial_data(part_ids=None, shoes=None, speeds=None):
         ).join(Trial, Footstep.trial_id == Trial.id)\
          .join(Participant, Trial.participant_id == Participant.id)
         
-        #2 apply dynamic filters using the SQL IN operator
         if part_ids:
             stmt = stmt.where(Participant.id.in_(part_ids))
         if shoes:
             stmt = stmt.where(Trial.footwear.in_(shoes))
         if speeds:
             stmt = stmt.where(Trial.speed.in_(speeds))
-            
-        #3 execute and load directly into a Pandas DataFrame
-        results = session.execute(stmt).all()
         
-        #4 convert the SQLAlchemy Row objects to dictionaries, then to a DataFrame
-        data_list = [dict(row._mapping) for row in results]
-        df = pd.DataFrame(data_list)
+        #pandas reads directly from the compiled SQL string
+        df = pd.read_sql(stmt, conn)
         
         return df
+
+def fetch_cross_trial_data(part_ids=None, shoes=None, speeds=None):
+    """
+    PUBLIC WRAPPER: Receives raw mutable lists from the Dash UI, 
+    freezes them into immutable tuples, and safely calls the cached SQL engine.
+    """
+    #freeze lists to tuples (or leave as None)
+    safe_parts = tuple(part_ids) if part_ids else None
+    safe_shoes = tuple(shoes) if shoes else None
+    safe_speeds = tuple(speeds) if speeds else None
+    
+    #return the cached result
+    return cached_fetch_cross_trial_data(safe_parts, safe_shoes, safe_speeds)
 
 def fetch_physics_arrays(step_ids):
     """
@@ -178,3 +192,53 @@ def fetch_pass_options(part, shoe, speed):
     unique_passes = sorted(list(set([s.pass_id for s in steps if s.pass_id is not None])))
     options = [{'label': f"Pass {p}", 'value': p} for p in unique_passes]
     return options, unique_passes
+
+@lru_cache(maxsize=32)
+def cached_aggregate_waveforms(step_ids_tuple):
+    """PRIVATE ENGINE: cached heavy JSON parsing and Numpy math."""
+    if not step_ids_tuple:
+        return None, None, None, None
+
+    grf_list = []
+    time_pct = None
+
+    #using standard ORM Session instead of raw engine connection
+    with Session(engine) as session: 
+        chunk_size = 900
+        for i in range(0, len(step_ids_tuple), chunk_size):
+            chunk = step_ids_tuple[i:i + chunk_size]
+            
+            #clean ORM syntax for selecting specific columns
+            stmt = select(
+                Footstep.time_pct_array, 
+                Footstep.grf_array
+            ).where(Footstep.id.in_(chunk))
+            
+            results = session.execute(stmt).all()
+
+            for row in results:
+                if time_pct is None and row.time_pct_array:
+                    time_pct = row.time_pct_array if isinstance(row.time_pct_array, list) else json.loads(row.time_pct_array)
+                
+                if row.grf_array:
+                    grf = row.grf_array if isinstance(row.grf_array, list) else json.loads(row.grf_array)
+                    grf_list.append(grf)
+
+    if not grf_list:
+        return None, None, None, None
+
+    matrix = np.array(grf_list)
+    mean_grf = np.mean(matrix, axis=0)
+    std_grf = np.std(matrix, axis=0)
+
+    upper_bound = mean_grf + std_grf
+    lower_bound = mean_grf - std_grf
+
+    return time_pct, mean_grf, upper_bound, lower_bound
+
+def fetch_aggregate_waveforms(step_ids):
+    """PUBLIC WRAPPER: freezes the mutable list of IDs into a hashable tuple."""
+    if not step_ids:
+        return None, None, None, None
+    safe_ids = tuple(step_ids)
+    return cached_aggregate_waveforms(safe_ids)

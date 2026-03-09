@@ -24,8 +24,10 @@ class Trial(Base):
     
     id: Mapped[int] = mapped_column(primary_key=True)
     participant_id: Mapped[str] = mapped_column(ForeignKey("participants.id"), nullable=False)
-    footwear: Mapped[str] = mapped_column(String(5), nullable=False)
-    speed: Mapped[str] = mapped_column(String(5), nullable=False)
+    
+    footwear: Mapped[str] = mapped_column(String(5), nullable=False, index=True)
+    speed: Mapped[str] = mapped_column(String(5), nullable=False, index=True)
+    
     file_path: Mapped[str] = mapped_column(String(255), nullable=True)
 
     footsteps: Mapped[List["Footstep"]] = relationship(back_populates="trial", cascade="all, delete-orphan")

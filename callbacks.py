@@ -285,46 +285,64 @@ def register_callbacks(app):
     # CROSS-TRIAL CALLBACKS (PHASE 2)
     # =====================================================================
 
-    # I. UPDATE CROSS-TRIAL PLOTS (Buffered Execution)
+    # I. UPDATE CROSS-TRIAL PLOTS
     @app.callback(
         [Output('ct-box-plot', 'figure'),
-         Output('ct-violin-plot', 'figure')],
-        [Input('ct-update-btn', 'n_clicks')], # the only trigger
-        [State('ct-part-dd', 'value'),
+         Output('ct-violin-plot', 'figure'),
+         Output('ct-bivariate-scatter', 'figure'),
+         Output('ct-aggregate-waveform', 'figure')],
+        [Input('ct-update-btn', 'n_clicks')], 
+        [State('ct-part-dd', 'value'),        
          State('ct-shoe-dd', 'value'),
          State('ct-speed-dd', 'value'),
          State('ct-metric-dd', 'value'),
+         State('ct-scatter-x-dd', 'value'),
          State('ct-group-dd', 'value'),
          State('ct-color-dd', 'value')]
     )
-    def update_cross_trial_plots(n_clicks, parts, shoes, speeds, metric, group, color):
+    def update_cross_trial_plots(n_clicks, parts, shoes, speeds, metric_y, metric_x, group, color):
+        if n_clicks == 0:
+            empty_fig = graphics.get_empty_physics_layout("Awaiting Execution")
+            return go.Figure(layout=empty_fig), go.Figure(layout=empty_fig), go.Figure(layout=empty_fig), go.Figure(layout=empty_fig)
         
-        # 1. Fetch the multi-trial flat dataframe using the selected demographic filters
-        df = data.fetch_crosstrial_data(part_ids=parts, shoes=shoes, speeds=speeds)
+        df = data.fetch_cross_trial_data(part_ids=parts, shoes=shoes, speeds=speeds) 
         
-        # 2. Handle empty datasets cleanly
         if df.empty:
             empty_fig = graphics.get_empty_physics_layout("No Data Matching Criteria")
-            return go.Figure(layout=empty_fig), go.Figure(layout=empty_fig)
-            
-        # 3. Generate the aggregations via Plotly Express
-        box_fig = graphics.create_box_plot(df, y_col=metric, x_col=group, color_col=color)
-        violin_fig = graphics.create_violin_plot(df, y_col=metric, x_col=group, color_col=color)
+            return go.Figure(layout=empty_fig), go.Figure(layout=empty_fig), go.Figure(layout=empty_fig), go.Figure(layout=empty_fig)
+
+        box_fig = graphics.create_box_plot(df, y_col=metric_y, x_col=group, color_col=color)
         
-        return box_fig, violin_fig
+        violin_fig = graphics.create_violin_plot(df, y_col=metric_y, x_col=group, color_col=color)
+        
+        scatter_fig = graphics.create_bivariate_scatter_plot(df, y_col=metric_y, x_col=metric_x, color_col=color)
+        
+        # 1 grab the exact IDs we need from the active DataFrame
+        step_ids = df['footstep_id'].tolist()
+        
+        # 2 feed them into the Numpy Matrix Engine
+        time_pct, mean_grf, upper_bound, lower_bound = data.fetch_aggregate_waveforms(step_ids)
+        
+        # 3 hand the computed math to Plotly
+        wave_fig = graphics.create_aggregate_waveform_plot(time_pct, mean_grf, upper_bound, lower_bound)
+        
+        return box_fig, violin_fig, scatter_fig, wave_fig
     
     # J. THE BRIDGE (Part 1: Capture the Click)
     @app.callback(
         Output('bridge-store', 'data'),
         [Input('ct-box-plot', 'clickData'),
-         Input('ct-violin-plot', 'clickData')],
+         Input('ct-violin-plot', 'clickData'),
+         Input('ct-bivariate-scatter', 'clickData')],
         prevent_initial_call=True
     )
-    def capture_cross_trial_click(box_click, violin_click):
+    def capture_cross_trial_click(box_click, violin_click, scatter_click):
         trigger_id = ctx.triggered_id
-        click_data = box_click if trigger_id == 'ct-box-plot' else violin_click
         
-        # Extract the embedded custom_data from the clicked point
+        if trigger_id == 'ct-box-plot': click_data = box_click
+        elif trigger_id == 'ct-violin-plot': click_data = violin_click
+        else: click_data = scatter_click
+        
         if click_data and 'points' in click_data:
             point = click_data['points'][0]
             if 'customdata' in point:
@@ -344,7 +362,7 @@ def register_callbacks(app):
         Input('bridge-store', 'data'),
         prevent_initial_call=True
     )
-    def execute_drilldown(bridge_data):
+    def execute_bridge(bridge_data):
         if bridge_data:
             return bridge_data['part'], bridge_data['shoe'], bridge_data['speed'], 'tab-single-trial'
         return no_update
