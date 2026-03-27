@@ -26,6 +26,18 @@ OPTIONS_PART = get_dropdown_options(Participant.id)
 OPTIONS_SHOE = get_dropdown_options(Trial.footwear)
 OPTIONS_SPEED = get_dropdown_options(Trial.speed)
 
+def with_spinner(component):
+    """
+    Wraps any Dash component in a uniform loading spinner.
+    Ensures identical UX across both Single and Cross-Trial tabs.
+    """
+    return dcc.Loading(
+        type="circle",
+        color="#007BFF",
+        parent_style={'height': '100%', 'width': '100%'},
+        children=component
+    )
+
 
 # =====================================================================
 # TAB 1: SINGLE-TRIAL ANALYSIS LAYOUT (Phase 1)
@@ -84,8 +96,12 @@ def get_single_trial_layout():
             dcc.Tab(label='Feature Analysis', value='tab-feature', children=[
                 html.Div(style={'display': 'flex', 'gap': '20px', 'height': '450px', 'padding': '20px'}, children=[
                     html.Div(style={'flex': '3', 'display': 'flex', 'flexDirection': 'column', 'gap': '15px'}, children=[
-                        html.Div(style={'flex': '2', 'border': '1px solid #ccc', 'borderRadius': '5px', 'padding': '10px'}, children=[dcc.Graph(id='main-scatter', style={'height': '100%'})]),
-                        html.Div(style={'flex': '1', 'border': '1px solid #ccc', 'borderRadius': '5px', 'padding': '10px'}, children=[dcc.Graph(id='rug-plot', style={'height': '100%'})]),
+                        html.Div(style={'flex': '2', 'border': '1px solid #ccc', 'borderRadius': '5px', 'padding': '10px'}, children=[
+                            with_spinner(dcc.Graph(id='main-scatter', style={'height': '100%'}))
+                        ]),
+                        html.Div(style={'flex': '1', 'border': '1px solid #ccc', 'borderRadius': '5px', 'padding': '10px'}, children=[
+                            with_spinner(dcc.Graph(id='rug-plot', style={'height': '100%'}))
+                        ]),
                     ]),
                     html.Div(style={'flex': '1', 'backgroundColor': '#f9f9f9', 'padding': '20px', 'borderRadius': '5px', 'overflowY': 'auto'}, children=[
                         html.H5("Axis Controls"),
@@ -110,15 +126,21 @@ def get_single_trial_layout():
                     html.H4("Physics", style={'marginBottom': '5px'}),
                     dcc.RadioItems(id='physics-overlay-toggle', options=[{'label': ' Individual Step ', 'value': 'individual'}, {'label': ' Overlay All Filtered ', 'value': 'overlay'}], value='individual', inline=True, style={'fontSize': '0.9em'})
                 ]),
-                html.Div(style={'flex': '1', 'border': '1px solid #eee', 'borderRadius': '5px', 'padding': '5px'}, children=[dcc.Graph(id='grf-plot', style={'height': '100%'})]),
-                html.Div(style={'flex': '1', 'border': '1px solid #eee', 'borderRadius': '5px', 'padding': '5px'}, children=[dcc.Graph(id='cop-plot', style={'height': '100%'})])
+                html.Div(style={'flex': '1', 'border': '1px solid #eee', 'borderRadius': '5px', 'padding': '5px'}, children=[
+                    with_spinner(dcc.Graph(id='grf-plot', style={'height': '100%'}))
+                ]),
+                html.Div(style={'flex': '1', 'border': '1px solid #eee', 'borderRadius': '5px', 'padding': '5px'}, children=[
+                    with_spinner(dcc.Graph(id='cop-plot', style={'height': '100%'}))
+                ])
             ]),
             html.Div(style={'flex': '1', 'display': 'flex', 'flexDirection': 'column', 'gap': '10px'}, children=[
                 html.Div(style={'display': 'flex', 'justifyContent': 'space-between', 'alignItems': 'center'}, children=[
                     html.H4("Spatial Footstep Map", style={'marginBottom': '5px'}),
                     dcc.Checklist(id='isolate-pass-check', options=[{'label': ' Isolate Pass on Click', 'value': 'isolate'}], value=['isolate'], inputStyle={"margin-right": "5px"})
                 ]),
-                html.Div(style={'flex': '1', 'border': '1px solid #ccc', 'borderRadius': '5px', 'padding': '10px'}, children=[dcc.Graph(id='walkway-plot', style={'height': '100%'})])
+                html.Div(style={'flex': '1', 'border': '1px solid #ccc', 'borderRadius': '5px', 'padding': '10px'}, children=[
+                    with_spinner(dcc.Graph(id='walkway-plot', style={'height': '100%'}))
+                ])
             ])
         ]),
 
@@ -132,8 +154,12 @@ def get_single_trial_layout():
                 ])
             ]),
             html.Div(style={'display': 'flex', 'gap': '20px'}, children=[
-                html.Div(style={'flex': '1', 'backgroundColor': 'white', 'padding': '15px', 'borderRadius': '5px', 'boxShadow': '0 2px 4px rgba(0,0,0,0.1)'}, children=[dcc.Graph(id='heatmap-plot', style={'height': '400px'})]),
-                html.Div(style={'flex': '1', 'backgroundColor': 'white', 'padding': '15px', 'borderRadius': '5px', 'boxShadow': '0 2px 4px rgba(0,0,0,0.1)'}, children=[dcc.Graph(id='histogram-plot', style={'height': '400px'})]),
+                html.Div(style={'flex': '1', 'backgroundColor': 'white', 'padding': '15px', 'borderRadius': '5px', 'boxShadow': '0 2px 4px rgba(0,0,0,0.1)'}, children=[
+                    with_spinner(dcc.Graph(id='heatmap-plot', style={'height': '400px'}))
+                ]),
+                html.Div(style={'flex': '1', 'backgroundColor': 'white', 'padding': '15px', 'borderRadius': '5px', 'boxShadow': '0 2px 4px rgba(0,0,0,0.1)'}, children=[
+                    with_spinner(dcc.Graph(id='histogram-plot', style={'height': '400px'}))
+                ]),
             ])
         ])
     ])
@@ -205,10 +231,10 @@ def get_cross_trial_layout():
             # Row 1: Distributions
             html.Div(style={'display': 'flex', 'gap': '20px', 'height': '450px'}, children=[
                 html.Div(style={'flex': '1', 'border': '1px solid #ddd', 'borderRadius': '5px', 'backgroundColor': 'white', 'padding': '10px'}, children=[
-                    dcc.Graph(id='ct-box-plot', style={'height': '100%'})
+                    with_spinner(dcc.Graph(id='ct-box-plot', style={'height': '100%'}))
                 ]),
                 html.Div(style={'flex': '1', 'border': '1px solid #ddd', 'borderRadius': '5px', 'backgroundColor': 'white', 'padding': '10px'}, children=[
-                    dcc.Graph(id='ct-violin-plot', style={'height': '100%'})
+                    with_spinner(dcc.Graph(id='ct-violin-plot', style={'height': '100%'}))
                 ])
             ]),
             
@@ -216,11 +242,11 @@ def get_cross_trial_layout():
             html.Div(style={'display': 'flex', 'gap': '20px', 'height': '450px'}, children=[
                 #Bivariate Scatter Plot
                 html.Div(style={'flex': '1', 'border': '1px solid #ddd', 'borderRadius': '5px', 'backgroundColor': 'white', 'padding': '10px'}, children=[
-                    dcc.Graph(id='ct-bivariate-scatter', style={'height': '100%'})
+                    with_spinner(dcc.Graph(id='ct-bivariate-scatter', style={'height': '100%'}))
                 ]),
                 #Aggregate Waveform Plot
                 html.Div(style={'flex': '1', 'border': '1px solid #ddd', 'borderRadius': '5px', 'backgroundColor': 'white', 'padding': '10px'}, children=[
-                    dcc.Graph(id='ct-aggregate-waveform', style={'height': '100%'})
+                    with_spinner(dcc.Graph(id='ct-aggregate-waveform', style={'height': '100%'}))
                 ])
             ])
         ])
