@@ -17,7 +17,7 @@ import graphics
 # F. UNIFIED SELECTION             -> Maps clicks across all plots to a single step ID
 # G. MANAGE PASS SELECTOR          -> Dynamically populates pass dropdown
 # H. CLEAR QUERY BUTTON LOGIC      -> Resets Advanced Query Input
-# I. UPDATE CROSS-TRIAL PLOTS      -> Renders Box/Violin for multi-trial comparisons
+# I. UPDATE CROSS-TRIAL PLOTS      -> Renders Box/Violin/Bivariate/AggregateWave for multi-trial comparisons
 # J. THE BRIDGE (Part 1: Capture the Click)
 # K. THE BRIDGE (Part 2: Execute Navigation)
 # =====================================================================
@@ -282,7 +282,7 @@ def register_callbacks(app):
         return ""
 
     # =====================================================================
-    # CROSS-TRIAL CALLBACKS (PHASE 2)
+    # CROSS-TRIAL CALLBACKS
     # =====================================================================
 
     # I. UPDATE CROSS-TRIAL PLOTS
@@ -298,32 +298,40 @@ def register_callbacks(app):
          State('ct-metric-dd', 'value'),
          State('ct-scatter-x-dd', 'value'),
          State('ct-group-dd', 'value'),
-         State('ct-color-dd', 'value')]
+         State('ct-color-dd', 'value'),
+         State('ct-granularity-dd', 'value')] # <--- NEW STATE INPUT
     )
-    def update_cross_trial_plots(n_clicks, parts, shoes, speeds, metric_y, metric_x, group, color):
+    def update_cross_trial_plots(n_clicks, parts, shoes, speeds, metric_y, metric_x, group, color, granularity):
         if n_clicks == 0:
             empty_fig = graphics.get_empty_physics_layout("Awaiting Execution")
             return go.Figure(layout=empty_fig), go.Figure(layout=empty_fig), go.Figure(layout=empty_fig), go.Figure(layout=empty_fig)
         
+        # 1. Fetch RAW Data
         df = data.fetch_cross_trial_data(part_ids=parts, shoes=shoes, speeds=speeds) 
         
         if df.empty:
             empty_fig = graphics.get_empty_physics_layout("No Data Matching Criteria")
             return go.Figure(layout=empty_fig), go.Figure(layout=empty_fig), go.Figure(layout=empty_fig), go.Figure(layout=empty_fig)
 
-        box_fig = graphics.create_box_plot(df, y_col=metric_y, x_col=group, color_col=color)
+        # 2. Extract RAW step IDs for the Waveform (which calculates its own aggregates)
+        raw_step_ids = df['footstep_id'].tolist() if 'footstep_id' in df.columns else []
+
+        # 3. Apply Granularity Aggregation for the statistical distribution plots
+        from helpers import apply_data_granularity # Import our new helper
+        df_agg = apply_data_granularity(df, granularity)
         
-        violin_fig = graphics.create_violin_plot(df, y_col=metric_y, x_col=group, color_col=color)
+        # Safety Check: If the user selects "Participant Baseline", columns like "footwear" are averaged out.
+        # We must prevent Plotly from crashing if it tries to group by a column that no longer exists.
+        safe_group = group if group in df_agg.columns else None
+        safe_color = color if color in df_agg.columns else None
+
+        # 4. Generate Plots using the aggregated DataFrame
+        box_fig = graphics.create_box_plot(df_agg, y_col=metric_y, x_col=safe_group, color_col=safe_color)
+        violin_fig = graphics.create_violin_plot(df_agg, y_col=metric_y, x_col=safe_group, color_col=safe_color)
+        scatter_fig = graphics.create_bivariate_scatter_plot(df_agg, y_col=metric_y, x_col=metric_x, color_col=safe_color)
         
-        scatter_fig = graphics.create_bivariate_scatter_plot(df, y_col=metric_y, x_col=metric_x, color_col=color)
-        
-        # 1 grab the exact IDs we need from the active DataFrame
-        step_ids = df['footstep_id'].tolist()
-        
-        # 2 feed them into the Numpy Matrix Engine
-        time_pct, mean_grf, upper_bound, lower_bound = data.fetch_aggregate_waveforms(step_ids)
-        
-        # 3 hand the computed math to Plotly
+        # 5. Generate Waveform using the RAW Step IDs
+        time_pct, mean_grf, upper_bound, lower_bound = data.fetch_aggregate_waveforms(raw_step_ids)
         wave_fig = graphics.create_aggregate_waveform_plot(time_pct, mean_grf, upper_bound, lower_bound)
         
         return box_fig, violin_fig, scatter_fig, wave_fig
@@ -346,10 +354,12 @@ def register_callbacks(app):
         if click_data and 'points' in click_data:
             point = click_data['points'][0]
             if 'customdata' in point:
+                c_data = point['customdata']
+                
                 return {
-                    'part': point['customdata'][0],
-                    'shoe': point['customdata'][1],
-                    'speed': point['customdata'][2]
+                    'part': c_data[0] if len(c_data) > 0 else None,
+                    'shoe': c_data[1] if len(c_data) > 1 else None,
+                    'speed': c_data[2] if len(c_data) > 2 else None
                 }
         return no_update
 

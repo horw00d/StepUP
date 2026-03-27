@@ -11,6 +11,25 @@ COLOR_MAP = {
     'Outlier': '#d62728' # Red
 }
 
+#HELPERS
+
+def generate_dynamic_hover_data(df):
+    """
+    Dynamically generates Plotly hover_data dictionary.
+    Only includes keys that currently exist in the DataFrame to prevent Plotly validation errors.
+    """
+    # List all the columns you ever want to see in a tooltip, in the order you want them
+    desired_hover_cols = [
+        'participant_id', 
+        'side', 
+        'footwear', 
+        'speed',  
+        'n_footsteps'
+    ]
+    
+    # Build the dictionary dynamically: only add the column if it survived the aggregation
+    return {col: True for col in desired_hover_cols if col in df.columns}
+
 # WALKWAY PLOT
 def create_walkway_plot(footsteps, selected_step_id=None):
     SENSOR_SIZE_M = 0.005
@@ -403,6 +422,9 @@ def create_box_plot(df, y_col, x_col, color_col):
         return go.Figure(layout=get_empty_physics_layout("Box Plot - No Data"))
     
     color_arg = color_col if color_col != 'none' else None
+
+    safe_custom_data = [col for col in ['participant_id', 'footwear', 'speed'] if col in df.columns]
+    dynamic_hover_data = generate_dynamic_hover_data(df)
     
     fig = px.box(
         df, 
@@ -412,16 +434,16 @@ def create_box_plot(df, y_col, x_col, color_col):
         points="all",
         title=f"Distribution of {y_col} by {x_col}",
         color_discrete_map=COLOR_MAP,
-        # embed the trial identifiers into every point!
-        custom_data=['participant_id', 'footwear', 'speed'] 
+        custom_data=safe_custom_data,
+        hover_data=dynamic_hover_data
     )
     
     fig.update_layout(
-        margin=dict(l=40, r=20, t=40, b=40),
+        margin=dict(l=20, r=20, t=30, b=20),
         plot_bgcolor='#f9f9f9',
-        legend_title_text=color_col.capitalize() if color_arg else "",
-        xaxis_title=x_col.replace('_', ' ').title(),
-        yaxis_title=y_col.replace('_', ' ').title()
+        legend_title_text=color_col.capitalize() if color_col and color_col != 'none' else "",
+        xaxis_title=x_col.replace('_', ' ').title() if x_col else "",
+        yaxis_title=y_col.replace('_', ' ').title() if y_col else ""
     )
     return fig
 
@@ -431,6 +453,9 @@ def create_violin_plot(df, y_col, x_col, color_col):
     
     color_arg = color_col if color_col != 'none' else None
     
+    safe_custom_data = [col for col in ['participant_id', 'footwear', 'speed'] if col in df.columns]
+    dynamic_hover_data = generate_dynamic_hover_data(df)
+    
     fig = px.violin(
         df, 
         x=x_col, 
@@ -439,16 +464,16 @@ def create_violin_plot(df, y_col, x_col, color_col):
         box=True, 
         title=f"Density Shape of {y_col} by {x_col}",
         color_discrete_map=COLOR_MAP,
-        # embed the trial identifiers into every point
-        custom_data=['participant_id', 'footwear', 'speed']
+        custom_data=safe_custom_data,
+        hover_data=dynamic_hover_data
     )
     
     fig.update_layout(
-        margin=dict(l=40, r=20, t=40, b=40),
+        margin=dict(l=20, r=20, t=30, b=20),
         plot_bgcolor='#f9f9f9',
-        legend_title_text=color_col.capitalize() if color_arg else "",
-        xaxis_title=x_col.replace('_', ' ').title(),
-        yaxis_title=y_col.replace('_', ' ').title()
+        legend_title_text=color_col.capitalize() if color_col and color_col != 'none' else "",
+        xaxis_title=x_col.replace('_', ' ').title() if x_col else "",
+        yaxis_title=y_col.replace('_', ' ').title() if y_col else ""
     )
     return fig
 
@@ -461,6 +486,9 @@ def create_bivariate_scatter_plot(df, y_col, x_col, color_col):
         return go.Figure(layout=get_empty_physics_layout("Scatter Plot - No Data"))
     
     color_arg = color_col if color_col != 'none' else None
+
+    safe_custom_data = [col for col in ['participant_id', 'footwear', 'speed'] if col in df.columns]
+    dynamic_hover_data = generate_dynamic_hover_data(df)
     
     fig = px.scatter(
         df, 
@@ -470,15 +498,16 @@ def create_bivariate_scatter_plot(df, y_col, x_col, color_col):
         trendline="ols", #instantly draw the regression line for each colored group
         title=f"Correlation of {x_col.replace('_', ' ').title()} and {y_col.replace('_', ' ').title()}",
         color_discrete_map=COLOR_MAP,
-        custom_data=['participant_id', 'footwear', 'speed'] #keeps the Drilldown bridge intact
+        custom_data=safe_custom_data,
+        hover_data=dynamic_hover_data
     )
     
     fig.update_layout(
-        margin=dict(l=40, r=20, t=40, b=40),
+        margin=dict(l=20, r=20, t=30, b=20),
         plot_bgcolor='#f9f9f9',
-        legend_title_text=color_col.capitalize() if color_arg else "",
-        xaxis_title=x_col.replace('_', ' ').title(),
-        yaxis_title=y_col.replace('_', ' ').title()
+        legend_title_text=color_col.capitalize() if color_col and color_col != 'none' else "",
+        xaxis_title=x_col.replace('_', ' ').title() if x_col else "",
+        yaxis_title=y_col.replace('_', ' ').title() if y_col else ""
     )
     return fig
 
