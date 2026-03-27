@@ -40,7 +40,7 @@ def with_spinner(component):
 
 
 # =====================================================================
-# TAB 1: SINGLE-TRIAL ANALYSIS LAYOUT (Phase 1)
+# TAB 1: SINGLE-TRIAL ANALYSIS LAYOUT
 # =====================================================================
 def get_single_trial_layout():
     return html.Div(children=[
@@ -165,7 +165,7 @@ def get_single_trial_layout():
     ])
 
 # =====================================================================
-# TAB 2: CROSS-TRIAL ANALYSIS LAYOUT (Phase 2 - Placeholder)
+# TAB 2: CROSS-TRIAL ANALYSIS LAYOUT
 # =====================================================================
 def get_cross_trial_layout():
     return html.Div(children=[
@@ -188,11 +188,21 @@ def get_cross_trial_layout():
 
         # --- ZONE 2: PLOT CONFIGURATION & EXECUTION ---
         html.Div(style={'display': 'flex', 'gap': '15px', 'marginBottom': '20px', 'alignItems': 'stretch'}, children=[
+            #granularity selector
+            html.Div(style={'flex': '1', 'border': '1px solid #ccc', 'padding': '10px', 'borderRadius': '5px', 'backgroundColor': '#f9f9f9'}, children=[
+                html.Label("Data Granularity:", style={'fontWeight': 'bold', 'fontSize': '0.9em'}),
+                dcc.Dropdown(id='ct-granularity-dd', options=[
+                    {'label': 'Footstep', 'value': 'footstep'},
+                    {'label': 'Trial', 'value': 'trial'},
+                    {'label': 'Participant', 'value': 'participant'}
+                ], value='footstep', clearable=False)
+            ]),
+            #primary y axis selector
             html.Div(style={'flex': '1', 'border': '1px solid #ccc', 'padding': '10px', 'borderRadius': '5px', 'backgroundColor': '#f9f9f9'}, children=[
                 html.Label("Primary Metric (Y-Axis):", style={'fontWeight': 'bold', 'fontSize': '0.9em'}),
                 dcc.Dropdown(id='ct-metric-dd', options=FEATURE_OPTIONS, value='peak_grf', clearable=False)
             ]),
-            # NEW: Scatter X-Axis
+            #scatter x axis selector
             html.Div(style={'flex': '1', 'border': '1px solid #ccc', 'padding': '10px', 'borderRadius': '5px', 'backgroundColor': '#f9f9f9'}, children=[
                 html.Label("Scatter Metric (X-Axis):", style={'fontWeight': 'bold', 'fontSize': '0.9em'}),
                 dcc.Dropdown(id='ct-scatter-x-dd', options=FEATURE_OPTIONS, value='stance_duration_frames', clearable=False)

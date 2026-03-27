@@ -62,3 +62,41 @@ def validate_query_string(query_string):
 
     # 6. Passed all security checks
     return True, ""
+
+def apply_data_granularity(df, granularity):
+    """
+    Aggregates cross-trial DataFrames to prevent statistical pseudoreplication.
+    - 'footstep': No aggregation (1 row = 1 step).
+    - 'trial': Averages footsteps per trial condition (1 row = 1 trial).
+    - 'participant': Averages all footsteps per participant (1 row = 1 person).
+    """
+    if df.empty or granularity == 'footstep':
+        # Add a dummy count for single footsteps so the hover logic is unified
+        df_out = df.copy()
+        df_out['n_footsteps'] = 1 
+        return df_out
+
+    if granularity == 'trial':
+        group_keys = ['participant_id', 'footwear', 'speed', 'sex', 'side']
+    elif granularity == 'participant':
+        group_keys = ['participant_id', 'sex', 'side']
+    else:
+        return df
+
+    valid_group_keys = [col for col in group_keys if col in df.columns]
+
+    try:
+        # 1. Count how many footsteps are in each group
+        step_counts = df.groupby(valid_group_keys).size().reset_index(name='n_footsteps')
+        
+        # 2. Calculate the means
+        aggregated_df = df.groupby(valid_group_keys).mean(numeric_only=True).reset_index()
+        
+        # 3. Merge the counts back into the aggregated dataframe
+        import pandas as pd
+        final_df = pd.merge(aggregated_df, step_counts, on=valid_group_keys)
+        return final_df
+        
+    except Exception as e:
+        print(f"Warning: Granularity aggregation failed - {e}")
+        return df
