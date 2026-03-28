@@ -15,3 +15,17 @@ SAMPLING_FREQ = 100
 #Data Module
 SENSOR_SIZE = 0.005
 TILE_SIZE = 0.6
+
+NO_COLOR_SENTINEL = 'none'
+
+class Granularity:
+    FOOTSTEP = 'footstep'
+    TRIAL = 'trial'
+    PARTICIPANT = 'participant'
+
+# config.py
+GRANULARITY_COMPATIBLE_GROUPS = {
+    'footstep': {'footwear', 'speed', 'sex', 'participant_id', 'side'},
+    'trial': {'footwear', 'speed', 'sex', 'participant_id', 'side'},
+    'participant': {'sex'},
+}

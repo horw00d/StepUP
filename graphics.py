@@ -2,6 +2,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
 import numpy as np
+from config import NO_COLOR_SENTINEL
 
 # define standard colors for consistency across app
 COLOR_MAP = {
@@ -29,6 +30,28 @@ def generate_dynamic_hover_data(df):
     
     # Build the dictionary dynamically: only add the column if it survived the aggregation
     return {col: True for col in desired_hover_cols if col in df.columns}
+
+def resolve_color_arg(color_col: str) -> str | None:
+    """
+    Converts the UI's no-color sentinel value into a Python None,
+    which Plotly interprets as 'do not color by any column'.
+    """
+    return None if color_col == NO_COLOR_SENTINEL else color_col
+
+
+def apply_cross_trial_layout(fig, x_col: str, y_col: str, color_col: str):
+    """
+    Applies the standard axis labels, margins, background, and legend
+    formatting shared across all cross-trial distribution plots.
+    """
+    fig.update_layout(
+        margin=dict(l=20, r=20, t=30, b=20),
+        plot_bgcolor='#f9f9f9',
+        legend_title_text=color_col.capitalize() if color_col and color_col != NO_COLOR_SENTINEL else "",
+        xaxis_title=x_col.replace('_', ' ').title() if x_col else "",
+        yaxis_title=y_col.replace('_', ' ').title() if y_col else "",
+    )
+    return fig
 
 # WALKWAY PLOT
 def create_walkway_plot(footsteps, selected_step_id=None):
@@ -420,62 +443,38 @@ def create_heatmap_and_histogram(matrix, step_id, dynamic_scale=True):
 def create_box_plot(df, y_col, x_col, color_col):
     if df.empty:
         return go.Figure(layout=get_empty_physics_layout("Box Plot - No Data"))
-    
-    color_arg = color_col if color_col != 'none' else None
 
-    safe_custom_data = [col for col in ['participant_id', 'footwear', 'speed'] if col in df.columns]
-    dynamic_hover_data = generate_dynamic_hover_data(df)
-    
     fig = px.box(
-        df, 
-        x=x_col, 
-        y=y_col, 
-        color=color_arg,
+        df,
+        x=x_col,
+        y=y_col,
+        color=resolve_color_arg(color_col),
         points="all",
         title=f"Distribution of {y_col} by {x_col}",
         color_discrete_map=COLOR_MAP,
-        custom_data=safe_custom_data,
-        hover_data=dynamic_hover_data
+        custom_data=[col for col in ['participant_id', 'footwear', 'speed'] if col in df.columns],
+        hover_data=generate_dynamic_hover_data(df)
     )
-    
-    fig.update_layout(
-        margin=dict(l=20, r=20, t=30, b=20),
-        plot_bgcolor='#f9f9f9',
-        legend_title_text=color_col.capitalize() if color_col and color_col != 'none' else "",
-        xaxis_title=x_col.replace('_', ' ').title() if x_col else "",
-        yaxis_title=y_col.replace('_', ' ').title() if y_col else ""
-    )
-    return fig
+
+    return apply_cross_trial_layout(fig, x_col, y_col, color_col)
 
 def create_violin_plot(df, y_col, x_col, color_col):
     if df.empty:
         return go.Figure(layout=get_empty_physics_layout("Violin Plot - No Data"))
-    
-    color_arg = color_col if color_col != 'none' else None
-    
-    safe_custom_data = [col for col in ['participant_id', 'footwear', 'speed'] if col in df.columns]
-    dynamic_hover_data = generate_dynamic_hover_data(df)
-    
+
     fig = px.violin(
-        df, 
-        x=x_col, 
-        y=y_col, 
-        color=color_arg,
-        box=True, 
+        df,
+        x=x_col,
+        y=y_col,
+        color=resolve_color_arg(color_col),
+        box=True,
         title=f"Density Shape of {y_col} by {x_col}",
         color_discrete_map=COLOR_MAP,
-        custom_data=safe_custom_data,
-        hover_data=dynamic_hover_data
+        custom_data=[col for col in ['participant_id', 'footwear', 'speed'] if col in df.columns],
+        hover_data=generate_dynamic_hover_data(df)
     )
-    
-    fig.update_layout(
-        margin=dict(l=20, r=20, t=30, b=20),
-        plot_bgcolor='#f9f9f9',
-        legend_title_text=color_col.capitalize() if color_col and color_col != 'none' else "",
-        xaxis_title=x_col.replace('_', ' ').title() if x_col else "",
-        yaxis_title=y_col.replace('_', ' ').title() if y_col else ""
-    )
-    return fig
+
+    return apply_cross_trial_layout(fig, x_col, y_col, color_col)
 
 def create_bivariate_scatter_plot(df, y_col, x_col, color_col):
     """
@@ -484,32 +483,20 @@ def create_bivariate_scatter_plot(df, y_col, x_col, color_col):
     """
     if df.empty:
         return go.Figure(layout=get_empty_physics_layout("Scatter Plot - No Data"))
-    
-    color_arg = color_col if color_col != 'none' else None
 
-    safe_custom_data = [col for col in ['participant_id', 'footwear', 'speed'] if col in df.columns]
-    dynamic_hover_data = generate_dynamic_hover_data(df)
-    
     fig = px.scatter(
-        df, 
-        x=x_col, 
-        y=y_col, 
-        color=color_arg,
-        trendline="ols", #instantly draw the regression line for each colored group
+        df,
+        x=x_col,
+        y=y_col,
+        color=resolve_color_arg(color_col),
+        trendline="ols",
         title=f"Correlation of {x_col.replace('_', ' ').title()} and {y_col.replace('_', ' ').title()}",
         color_discrete_map=COLOR_MAP,
-        custom_data=safe_custom_data,
-        hover_data=dynamic_hover_data
+        custom_data=[col for col in ['participant_id', 'footwear', 'speed'] if col in df.columns],
+        hover_data=generate_dynamic_hover_data(df)
     )
-    
-    fig.update_layout(
-        margin=dict(l=20, r=20, t=30, b=20),
-        plot_bgcolor='#f9f9f9',
-        legend_title_text=color_col.capitalize() if color_col and color_col != 'none' else "",
-        xaxis_title=x_col.replace('_', ' ').title() if x_col else "",
-        yaxis_title=y_col.replace('_', ' ').title() if y_col else ""
-    )
-    return fig
+
+    return apply_cross_trial_layout(fig, x_col, y_col, color_col)
 
 def create_aggregate_waveform_plot(time_pct, mean_grf, upper_bound, lower_bound):
     """
