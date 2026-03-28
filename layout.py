@@ -2,6 +2,7 @@ from dash import html, dcc
 from sqlalchemy import select, distinct
 from models import Trial, Participant
 from database import engine, Session
+from config import NO_COLOR_SENTINEL, Granularity
 
 # Constants
 FEATURE_OPTIONS = [
@@ -192,8 +193,8 @@ def get_cross_trial_layout():
             html.Div(style={'flex': '1', 'border': '1px solid #ccc', 'padding': '10px', 'borderRadius': '5px', 'backgroundColor': '#f9f9f9'}, children=[
                 html.Label("Data Granularity:", style={'fontWeight': 'bold', 'fontSize': '0.9em'}),
                 dcc.Dropdown(id='ct-granularity-dd', options=[
-                    {'label': 'Footstep', 'value': 'footstep'},
-                    {'label': 'Trial', 'value': 'trial'},
+                    {'label': 'Footstep',              'value': 'footstep'},
+                    {'label': 'Trial',      'value': 'trial'},
                     {'label': 'Participant', 'value': 'participant'}
                 ], value='footstep', clearable=False)
             ]),
@@ -209,22 +210,11 @@ def get_cross_trial_layout():
             ]),
             html.Div(style={'flex': '1', 'border': '1px solid #ccc', 'padding': '10px', 'borderRadius': '5px', 'backgroundColor': '#f9f9f9'}, children=[
                 html.Label("Group By (Distributions):", style={'fontWeight': 'bold', 'fontSize': '0.9em'}),
-                dcc.Dropdown(id='ct-group-dd', options=[
-                    {'label': 'Footwear Type', 'value': 'footwear'},
-                    {'label': 'Walking Speed', 'value': 'speed'},
-                    {'label': 'Biological Sex', 'value': 'sex'},
-                    {'label': 'Participant ID', 'value': 'participant_id'}
-                ], value='footwear', clearable=False)
+                dcc.Dropdown(id='ct-group-dd', value='footwear', clearable=False)
             ]),
             html.Div(style={'flex': '1', 'border': '1px solid #ccc', 'padding': '10px', 'borderRadius': '5px', 'backgroundColor': '#f9f9f9'}, children=[
                 html.Label("Sub-Group (Color):", style={'fontWeight': 'bold', 'fontSize': '0.9em'}),
-                dcc.Dropdown(id='ct-color-dd', options=[
-                    {'label': 'None', 'value': 'none'},
-                    {'label': 'Footwear Type', 'value': 'footwear'},
-                    {'label': 'Walking Speed', 'value': 'speed'},
-                    {'label': 'Biological Sex', 'value': 'sex'},
-                    {'label': 'Side (Left/Right)', 'value': 'side'}
-                ], value='speed', clearable=False)
+                dcc.Dropdown(id='ct-color-dd', value='speed', clearable=False)
             ]),
             html.Div(style={'flex': '0.7', 'display': 'flex', 'alignItems': 'flex-end'}, children=[
                 html.Button('Update Charts', id='ct-update-btn', n_clicks=0, style={

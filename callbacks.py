@@ -1,12 +1,12 @@
-from helpers import filter_dataframe
+from helpers import filter_dataframe, apply_data_granularity
 from dash import html, Input, Output, State, ctx, ALL, no_update
+from config import GRANULARITY_COMPATIBLE_GROUPS
+from config import NO_COLOR_SENTINEL
 import plotly.graph_objects as go
 import pandas as pd
 import data
 import graphics
 
-# =====================================================================
-# STEPUP CALLBACK ARCHITECTURE (SINGLE-TRIAL PHASE)
 # =====================================================================
 # MASTER: Master Data Controller   -> Fetches & filters data, broadcasts valid IDs
 # A. UPDATE FEATURE PLOTS          -> Renders Scatter and Rug plots
@@ -20,6 +20,7 @@ import graphics
 # I. UPDATE CROSS-TRIAL PLOTS      -> Renders Box/Violin/Bivariate/AggregateWave for multi-trial comparisons
 # J. THE BRIDGE (Part 1: Capture the Click)
 # K. THE BRIDGE (Part 2: Execute Navigation)
+# L. CONSTRAIN GROUP/COLOR DROPDOWNS BASED ON GRANULARITY
 # =====================================================================
 
 def register_callbacks(app):
@@ -299,7 +300,7 @@ def register_callbacks(app):
          State('ct-scatter-x-dd', 'value'),
          State('ct-group-dd', 'value'),
          State('ct-color-dd', 'value'),
-         State('ct-granularity-dd', 'value')] # <--- NEW STATE INPUT
+         State('ct-granularity-dd', 'value')]
     )
     def update_cross_trial_plots(n_clicks, parts, shoes, speeds, metric_y, metric_x, group, color, granularity):
         if n_clicks == 0:
@@ -317,18 +318,12 @@ def register_callbacks(app):
         raw_step_ids = df['footstep_id'].tolist() if 'footstep_id' in df.columns else []
 
         # 3. Apply Granularity Aggregation for the statistical distribution plots
-        from helpers import apply_data_granularity # Import our new helper
         df_agg = apply_data_granularity(df, granularity)
-        
-        # Safety Check: If the user selects "Participant Baseline", columns like "footwear" are averaged out.
-        # We must prevent Plotly from crashing if it tries to group by a column that no longer exists.
-        safe_group = group if group in df_agg.columns else None
-        safe_color = color if color in df_agg.columns else None
 
         # 4. Generate Plots using the aggregated DataFrame
-        box_fig = graphics.create_box_plot(df_agg, y_col=metric_y, x_col=safe_group, color_col=safe_color)
-        violin_fig = graphics.create_violin_plot(df_agg, y_col=metric_y, x_col=safe_group, color_col=safe_color)
-        scatter_fig = graphics.create_bivariate_scatter_plot(df_agg, y_col=metric_y, x_col=metric_x, color_col=safe_color)
+        box_fig     = graphics.create_box_plot(df_agg, y_col=metric_y, x_col=group, color_col=color)
+        violin_fig  = graphics.create_violin_plot(df_agg, y_col=metric_y, x_col=group, color_col=color)
+        scatter_fig = graphics.create_bivariate_scatter_plot(df_agg, y_col=metric_y, x_col=metric_x, color_col=color)
         
         # 5. Generate Waveform using the RAW Step IDs
         time_pct, mean_grf, upper_bound, lower_bound = data.fetch_aggregate_waveforms(raw_step_ids)
@@ -376,3 +371,54 @@ def register_callbacks(app):
         if bridge_data:
             return bridge_data['part'], bridge_data['shoe'], bridge_data['speed'], 'tab-single-trial'
         return no_update
+    
+    @app.callback(
+    [Output('ct-group-dd', 'options'),
+     Output('ct-group-dd', 'value'),
+     Output('ct-color-dd', 'options'),
+     Output('ct-color-dd', 'value')],
+    [Input('ct-granularity-dd', 'value')],
+    [State('ct-group-dd', 'value'),
+     State('ct-color-dd', 'value')]
+    )
+    def constrain_group_color_dropdowns(granularity, current_group, current_color):
+        """
+        Dynamically enables/disables Group By and Color By options based on the
+        selected granularity level. Prevents the user from selecting combinations
+        that would produce meaningless aggregations (e.g., grouping by 'footwear'
+        at participant granularity, where footwear has been averaged out).
+        """
+        compatible = GRANULARITY_COMPATIBLE_GROUPS.get(granularity, set())
+
+        all_group_options = [
+            {'label': 'Footwear Type',   'value': 'footwear'},
+            {'label': 'Walking Speed',   'value': 'speed'},
+            {'label': 'Biological Sex',  'value': 'sex'},
+            {'label': 'Participant ID',  'value': 'participant_id'},
+        ]
+        all_color_options = [
+            {'label': 'None',            'value': NO_COLOR_SENTINEL},
+            {'label': 'Footwear Type',   'value': 'footwear'},
+            {'label': 'Walking Speed',   'value': 'speed'},
+            {'label': 'Biological Sex',  'value': 'sex'},
+            {'label': 'Side (Left/Right)', 'value': 'side'},
+        ]
+
+        group_options = [
+            {**opt, 'disabled': opt['value'] not in compatible}
+            for opt in all_group_options
+        ]
+        color_options = [
+            {**opt, 'disabled': opt['value'] not in compatible and opt['value'] != NO_COLOR_SENTINEL}
+            for opt in all_color_options
+        ]
+
+        # If the current selection has become invalid, reset to a safe default
+        valid_group = current_group if current_group in compatible else next(
+            (opt['value'] for opt in all_group_options if opt['value'] in compatible), None
+        )
+        valid_color = current_color if (
+            current_color == NO_COLOR_SENTINEL or current_color in compatible
+        ) else NO_COLOR_SENTINEL
+
+        return group_options, valid_group, color_options, valid_color
