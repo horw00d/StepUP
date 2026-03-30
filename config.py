@@ -1,8 +1,14 @@
-ALLOWED_COLUMNS = {
-    'footstep_index', 'start_frame', 'r_score', 'mean_grf', 
-    'foot_length', 'foot_width', 'rotation_angle', 
-    'side', 'is_outlier', 'tile_id', 'pass_id'
-}
+ALLOWED_COLUMNS = [
+    # Demographic Data
+    'participant_id', 'sex', 'age', 'weight_kg', 'height_cm',
+    # Trial Context
+    'trial_id', 'footwear', 'speed', 'side', 'is_outlier', 
+    # Footstep Context
+    'footstep_id', 'footstep_index', 'start_frame', 'r_score',
+    # Kinetic Metrics
+    'mean_grf', 'peak_grf', 'stance_duration_frames', 
+    'foot_length', 'foot_width', 'rotation_angle'
+]
 
 # The strict allowlist of logical Python/Pandas operators
 ALLOWED_KEYWORDS = {'and', 'or', 'not', 'in'}
