@@ -38,7 +38,7 @@ def register_callbacks(app):
          Input('filter-tile', 'value'),
          Input('filter-pass', 'value'),
          Input('apply-query-btn', 'n_clicks'),
-         Input('query-input', 'value')]
+         Input('st-query-input', 'value')]
     )
     def master_data_controller(part, shoe, speed, sides, outliers, tiles, passes, apply_clicks, query_string):
         if not (part and shoe and speed):
@@ -273,13 +273,13 @@ def register_callbacks(app):
 
         return [], []
 
-    # H. CLEAR QUERY BUTTON LOGIC
+    # H. CLEAR CROSS-TRIAL QUERY
     @app.callback(
-        Output('query-input', 'value'),
-        Input('clear-query-btn', 'n_clicks'),
+        Output('st-query-input', 'value'),
+        Input('st-clear-query-btn', 'n_clicks'),
         prevent_initial_call=True
     )
-    def clear_query(n_clicks):
+    def clear_st_query(n_clicks):
         return ""
 
     # =====================================================================
@@ -291,8 +291,10 @@ def register_callbacks(app):
         [Output('ct-box-plot', 'figure'),
          Output('ct-violin-plot', 'figure'),
          Output('ct-bivariate-scatter', 'figure'),
-         Output('ct-aggregate-waveform', 'figure')],
-        [Input('ct-update-btn', 'n_clicks')], 
+         Output('ct-aggregate-waveform', 'figure'),
+         Output('ct-query-error-msg', 'children')],
+        [Input('ct-update-btn', 'n_clicks'),
+         Input('ct-apply-query-btn', 'n_clicks')],
         [State('ct-part-dd', 'value'),        
          State('ct-shoe-dd', 'value'),
          State('ct-speed-dd', 'value'),
@@ -300,36 +302,50 @@ def register_callbacks(app):
          State('ct-scatter-x-dd', 'value'),
          State('ct-group-dd', 'value'),
          State('ct-color-dd', 'value'),
-         State('ct-granularity-dd', 'value')]
+         State('ct-granularity-dd', 'value'),
+         State('ct-query-input', 'value')]
     )
-    def update_cross_trial_plots(n_clicks, parts, shoes, speeds, metric_y, metric_x, group, color, granularity):
-        if n_clicks == 0:
+    def update_cross_trial_plots(update_clicks, apply_clicks, parts, shoes, speeds, metric_y, metric_x, group, color, granularity, query_string):
+        if update_clicks == 0 and apply_clicks == 0:
             empty_fig = graphics.get_empty_physics_layout("Awaiting Execution")
-            return go.Figure(layout=empty_fig), go.Figure(layout=empty_fig), go.Figure(layout=empty_fig), go.Figure(layout=empty_fig)
+            return go.Figure(layout=empty_fig), go.Figure(layout=empty_fig), go.Figure(layout=empty_fig), go.Figure(layout=empty_fig), ""
         
         # 1. Fetch RAW Data
         df = data.fetch_cross_trial_data(part_ids=parts, shoes=shoes, speeds=speeds) 
         
         if df.empty:
             empty_fig = graphics.get_empty_physics_layout("No Data Matching Criteria")
-            return go.Figure(layout=empty_fig), go.Figure(layout=empty_fig), go.Figure(layout=empty_fig), go.Figure(layout=empty_fig)
+            return go.Figure(layout=empty_fig), go.Figure(layout=empty_fig), go.Figure(layout=empty_fig), go.Figure(layout=empty_fig), ""
 
-        # 2. Extract RAW step IDs for the Waveform (which calculates its own aggregates)
+        # 2. Apply Free-Form Query Filtering (BEFORE Aggregation)
+        from helpers import apply_advanced_query, apply_data_granularity
+        error_msg = ""
+        if query_string:
+            df, error_msg = apply_advanced_query(df, query_string)
+            if error_msg: # If user typed an invalid query, halt and show error
+                empty_fig = graphics.get_empty_physics_layout("Query Error")
+                return go.Figure(layout=empty_fig), go.Figure(layout=empty_fig), go.Figure(layout=empty_fig), go.Figure(layout=empty_fig), error_msg
+            if df.empty:  # If the query was valid but filtered out 100% of the footsteps
+                empty_fig = graphics.get_empty_physics_layout("Query Filtered All Data")
+                return go.Figure(layout=empty_fig), go.Figure(layout=empty_fig), go.Figure(layout=empty_fig), go.Figure(layout=empty_fig), ""
+
+        # 3. Extract RAW step IDs for the Waveform
         raw_step_ids = df['footstep_id'].tolist() if 'footstep_id' in df.columns else []
 
-        # 3. Apply Granularity Aggregation for the statistical distribution plots
+        # 4. Apply Granularity Aggregation
         df_agg = apply_data_granularity(df, granularity)
+        safe_group = group if group in df_agg.columns else None
+        safe_color = color if color in df_agg.columns else None
 
-        # 4. Generate Plots using the aggregated DataFrame
-        box_fig     = graphics.create_box_plot(df_agg, y_col=metric_y, x_col=group, color_col=color)
-        violin_fig  = graphics.create_violin_plot(df_agg, y_col=metric_y, x_col=group, color_col=color)
-        scatter_fig = graphics.create_bivariate_scatter_plot(df_agg, y_col=metric_y, x_col=metric_x, color_col=color)
+        # 5. Generate Plots
+        box_fig = graphics.create_box_plot(df_agg, y_col=metric_y, x_col=safe_group, color_col=safe_color)
+        violin_fig = graphics.create_violin_plot(df_agg, y_col=metric_y, x_col=safe_group, color_col=safe_color)
+        scatter_fig = graphics.create_bivariate_scatter_plot(df_agg, y_col=metric_y, x_col=metric_x, color_col=safe_color)
         
-        # 5. Generate Waveform using the RAW Step IDs
         time_pct, mean_grf, upper_bound, lower_bound = data.fetch_aggregate_waveforms(raw_step_ids)
         wave_fig = graphics.create_aggregate_waveform_plot(time_pct, mean_grf, upper_bound, lower_bound)
         
-        return box_fig, violin_fig, scatter_fig, wave_fig
+        return box_fig, violin_fig, scatter_fig, wave_fig, ""
     
     # J. THE BRIDGE (Part 1: Capture the Click)
     @app.callback(
@@ -422,3 +438,12 @@ def register_callbacks(app):
         ) else NO_COLOR_SENTINEL
 
         return group_options, valid_group, color_options, valid_color
+
+    # L. CLEAR CROSS-TRIAL QUERY
+    @app.callback(
+        Output('ct-query-input', 'value'),
+        Input('ct-clear-query-btn', 'n_clicks'),
+        prevent_initial_call=True
+    )
+    def clear_ct_query(n_clicks):
+        return ""

@@ -2,33 +2,43 @@ import re
 import pandas as pd
 from config import ALLOWED_COLUMNS, ALLOWED_KEYWORDS
 
+def apply_advanced_query(df, query_string):
+    """
+    Executes a free-form Boolean query string against a DataFrame securely.
+    Returns: (filtered_df: pd.DataFrame, error_message: str)
+    """
+    if df.empty or not query_string:
+        return df, ""
+
+    is_valid, validation_msg = validate_query_string(query_string)
+    if not is_valid:
+        return df, validation_msg
+
+    try:
+        # Executes the string logic in-memory
+        filtered_df = df.query(query_string)
+        return filtered_df, ""
+    except Exception as e:
+        # Catches syntax or Pandas evaluation errors
+        return df, f"Execution Error: {e}"
+
 #helper function to apply all filters in one place
 def filter_dataframe(df, sides, outliers, tiles, passes, query_string=None):
     """
-    Common logic to filter the dataframe based on UI inputs and free-form query.
-    Returns the filtered DataFrame AND an error message string (if any).
+    (Phase 1 Legacy) Applies standard UI filters and advanced queries.
     """
     error_msg = ""
     if df.empty: return df, error_msg
     
-    #1. standard UI Filters
+    # 1. Standard UI Filters
     if sides: df = df[df['side'].isin(sides)]
     if outliers: df = df[df['is_outlier'].isin(outliers)]
     if tiles: df = df[df['tile_id'].isin(tiles)]
     if passes: df = df[df['pass_id'].isin(passes)]
         
-    #2. advanced Query Builder Execution
+    # 2. Advanced Query Builder Execution (Refactored)
     if query_string:
-        is_valid, validation_msg = validate_query_string(query_string)
-        if is_valid:
-            try:
-                #executes the string logic in-memory
-                df = df.query(query_string)
-            except Exception as e:
-                #catch syntax errors
-                error_msg = f"Execution Error: {e}"
-        else:
-            error_msg = validation_msg
+        df, error_msg = apply_advanced_query(df, query_string)
             
     return df, error_msg
 

@@ -82,9 +82,9 @@ def get_single_trial_layout():
             html.Div(style={'borderTop': '1px solid #ccc', 'paddingTop': '15px', 'display': 'flex', 'flexDirection': 'column', 'gap': '10px'}, children=[
                 html.Div(style={'display': 'flex', 'alignItems': 'center', 'gap': '10px'}, children=[
                     html.Label("Advanced Query:", style={'fontWeight': 'bold', 'whiteSpace': 'nowrap'}),
-                    dcc.Input(id='query-input', type='text', placeholder="e.g., mean_grf > 200 and side == 'Left'", debounce=True, style={'flex': '1', 'padding': '0 12px', 'height': '38px', 'boxSizing': 'border-box', 'borderRadius': '4px', 'border': '1px solid #ccc'}),
+                    dcc.Input(id='st-query-input', type='text', placeholder="e.g., mean_grf > 200 and side == 'Left'", debounce=True, style={'flex': '1', 'padding': '0 12px', 'height': '38px', 'boxSizing': 'border-box', 'borderRadius': '4px', 'border': '1px solid #ccc'}),
                     html.Button('Apply', id='apply-query-btn', n_clicks=0, style={'height': '38px', 'padding': '0 15px', 'backgroundColor': '#007BFF', 'color': 'white', 'border': 'none', 'borderRadius': '4px', 'cursor': 'pointer', 'fontWeight': 'bold'}),
-                    html.Button('Clear', id='clear-query-btn', n_clicks=0, style={'height': '38px', 'padding': '0 15px', 'backgroundColor': '#6c757d', 'color': 'white', 'border': 'none', 'borderRadius': '4px', 'cursor': 'pointer'})
+                    html.Button('Clear', id='st-clear-query-btn', n_clicks=0, style={'height': '38px', 'padding': '0 15px', 'backgroundColor': '#6c757d', 'color': 'white', 'border': 'none', 'borderRadius': '4px', 'cursor': 'pointer'})
                 ]),
                 html.Div(id='query-error-msg', style={'color': 'red', 'fontWeight': 'bold', 'fontSize': '0.9em', 'minHeight': '15px'}),
             ])
@@ -185,6 +185,17 @@ def get_cross_trial_layout():
                 html.Label("3. Filter Speeds:", style={'fontWeight': 'bold', 'fontSize': '0.9em'}),
                 dcc.Dropdown(id='ct-speed-dd', options=OPTIONS_SPEED, multi=True, placeholder="All Speeds")
             ])
+        ]),
+
+        # advanced query builder for cross-trial tab
+        html.Div(style={'backgroundColor': '#f1f1f1', 'padding': '15px', 'borderRadius': '5px', 'marginBottom': '20px', 'display': 'flex', 'flexDirection': 'column', 'gap': '10px'}, children=[
+            html.Div(style={'display': 'flex', 'alignItems': 'center', 'gap': '10px'}, children=[
+                html.Label("Advanced Query:", style={'fontWeight': 'bold', 'whiteSpace': 'nowrap'}),
+                dcc.Input(id='ct-query-input', type='text', placeholder="e.g., age >= 60 and peak_grf < 600", debounce=True, style={'flex': '1', 'padding': '0 12px', 'height': '38px', 'boxSizing': 'border-box', 'borderRadius': '4px', 'border': '1px solid #ccc'}),
+                html.Button('Apply', id='ct-apply-query-btn', n_clicks=0, style={'height': '38px', 'padding': '0 15px', 'backgroundColor': '#007BFF', 'color': 'white', 'border': 'none', 'borderRadius': '4px', 'cursor': 'pointer', 'fontWeight': 'bold'}),
+                html.Button('Clear', id='ct-clear-query-btn', n_clicks=0, style={'height': '38px', 'padding': '0 15px', 'backgroundColor': '#6c757d', 'color': 'white', 'border': 'none', 'borderRadius': '4px', 'cursor': 'pointer'})
+            ]),
+            html.Div(id='ct-query-error-msg', style={'color': 'red', 'fontWeight': 'bold', 'fontSize': '0.9em', 'minHeight': '15px'}),
         ]),
 
         # --- ZONE 2: PLOT CONFIGURATION & EXECUTION ---
