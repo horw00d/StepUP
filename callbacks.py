@@ -1,5 +1,5 @@
-from helpers import filter_dataframe, apply_data_granularity
-from dash import html, Input, Output, State, ctx, ALL, no_update
+from helpers import filter_dataframe, apply_advanced_query, apply_data_granularity
+from dash import html, Input, Output, State, ctx, ALL, no_update, MATCH
 from config import GRANULARITY_COMPATIBLE_GROUPS
 from config import NO_COLOR_SENTINEL
 import plotly.graph_objects as go
@@ -16,29 +16,46 @@ import graphics
 # E. UPDATE IMAGE GRID             -> Renders DOM for Footstep Library
 # F. UNIFIED SELECTION             -> Maps clicks across all plots to a single step ID
 # G. MANAGE PASS SELECTOR          -> Dynamically populates pass dropdown
-# H. CLEAR QUERY BUTTON LOGIC      -> Resets Advanced Query Input
-# I. UPDATE CROSS-TRIAL PLOTS      -> Renders Box/Violin/Bivariate/AggregateWave for multi-trial comparisons
-# J. THE BRIDGE (Part 1: Capture the Click)
-# K. THE BRIDGE (Part 2: Execute Navigation)
-# L. CONSTRAIN GROUP/COLOR DROPDOWNS BASED ON GRANULARITY
+# H. CLEAR QUERY                   -> Resets Advanced Query Input
+# I. CROSS-TRIAL DATA CONTROLLER   -> Fetches, queries, and broadcasts clean CT data
+# J. UPDATE CROSS-TRIAL PLOTS      -> Renders Box/Violin/Bivariate/AggregateWave
+# K. THE BRIDGE (Part 1: Capture the Click)
+# L. THE BRIDGE (Part 2: Execute Navigation)
+# M. CONSTRAIN GROUP/COLOR DROPDOWNS BASED ON GRANULARITY
 # =====================================================================
+
+
+def _empty_ct_figures(title: str):
+    """
+    Returns the standard four-figure empty-state tuple for cross-trial plots,
+    paired with an error message string. Eliminates repeated boilerplate across
+    the early-return branches of the cross-trial plot renderer.
+    """
+    fig = go.Figure(layout=graphics.get_empty_physics_layout(title))
+    return fig, fig, fig, fig
+
 
 def register_callbacks(app):
 
+    # =====================================================================
+    # SINGLE-TRIAL CALLBACKS
+    # =====================================================================
+
+    # MASTER: Master Data Controller
     # MASTER: Master Data Controller
     @app.callback(
         [Output('filtered-data-store', 'data'),
-         Output('trial-status', 'children'),
-         Output('query-error-msg', 'children')],
+         Output('trial-status', 'children'), # Restored to match layout.py
+         Output('st-query-error-msg', 'children')],
         [Input('part-dd', 'value'),
          Input('shoe-dd', 'value'),
          Input('speed-dd', 'value'),
-         Input('filter-side', 'value'),
-         Input('filter-outlier', 'value'),
-         Input('filter-tile', 'value'),
-         Input('filter-pass', 'value'),
-         Input('apply-query-btn', 'n_clicks'),
-         Input('st-query-input', 'value')]
+         Input('filter-side', 'value'),       # Restored
+         Input('filter-outlier', 'value'),    # Restored
+         Input('filter-tile', 'value'),       # Restored
+         Input('filter-pass', 'value'),       # Restored
+         Input('st-apply-query-btn', 'n_clicks'),
+         Input({'type': 'query-input', 'tab': 'single'}, 'value')] # The new MATCH ID
     )
     def master_data_controller(part, shoe, speed, sides, outliers, tiles, passes, apply_clicks, query_string):
         if not (part and shoe and speed):
@@ -49,7 +66,7 @@ def register_callbacks(app):
         if not trial:
             return {'valid_ids': []}, "No Data", ""
 
-        # Run the heavy Pandas filtering logic exactly ONE time
+        # Run the heavy Pandas filtering logic
         df_filtered, error_msg = filter_dataframe(df, sides, outliers, tiles, passes, query_string)
 
         valid_ids = df_filtered['id'].tolist() if not df_filtered.empty else []
@@ -177,17 +194,12 @@ def register_callbacks(app):
          Input('color-scale-toggle', 'value')]
     )
     def update_pressure_plots(step_id, scale_mode):
-        #handle empty state
         if not step_id:
             return graphics.create_heatmap_and_histogram(None, None)
             
-        #fetch the matrix
         matrix = data.fetch_footstep_matrix(step_id)
-        
-        #determine the scaling mode
         is_dynamic = (scale_mode == 'dynamic')
         
-        #generate Plots with the toggle state passed down
         return graphics.create_heatmap_and_histogram(matrix, step_id, dynamic_scale=is_dynamic)
 
     # E. UPDATE IMAGE GRID
@@ -263,91 +275,136 @@ def register_callbacks(app):
         [Input('part-dd', 'value'),
          Input('shoe-dd', 'value'),
          Input('speed-dd', 'value')]
-         # Removed 'selected-step-store' from Inputs!
     )
     def manage_pass_selector(part, shoe, speed):
-        # Only runs when trial changes
         if part and shoe and speed:
             options, _ = data.fetch_pass_options(part, shoe, speed)
-            return options, [] # Default to empty (All)
+            return options, []
 
         return [], []
 
-    # H. CLEAR CROSS-TRIAL QUERY
+    # H. CLEAR QUERY
     @app.callback(
-        Output('st-query-input', 'value'),
-        Input('st-clear-query-btn', 'n_clicks'),
+        Output({'type': 'query-input', 'tab': MATCH}, 'value'),
+        Input({'type': 'clear-query-btn', 'tab': MATCH}, 'n_clicks'),
         prevent_initial_call=True
     )
-    def clear_st_query(n_clicks):
+    def clear_query(n_clicks):
         return ""
 
     # =====================================================================
     # CROSS-TRIAL CALLBACKS
     # =====================================================================
 
-    # I. UPDATE CROSS-TRIAL PLOTS
+    # I. CROSS-TRIAL DATA CONTROLLER
+    #
+    # Mirrors the single-trial master_data_controller pattern. Owns all data
+    # access and query logic for the cross-trial tab, then broadcasts clean
+    # state to ct-filtered-data-store for downstream plot callbacks to consume.
+    #
+    # Triggers: any change to the cohort dropdowns, the apply button, or the
+    # update button — the same inputs that previously drove the mega-callback.
+    # The update button is kept here so the controller always runs before the
+    # renderer (Dash fires callbacks in dependency order).
+    #
+    # Outputs:
+    #   ct-filtered-data-store — {raw_step_ids, valid_footstep_ids, raw_df_json}
+    #     raw_step_ids:      footstep DB IDs before granularity aggregation,
+    #                        used by the aggregate waveform plot.
+    #     valid_footstep_ids: same list, kept for any future per-step consumers.
+    #     raw_df_json:       the fully-filtered DataFrame serialised to JSON so
+    #                        the renderer can apply granularity without hitting
+    #                        the DB again.
+    #   ct-query-error-msg  — validation/execution error string, or "".
     @app.callback(
-        [Output('ct-box-plot', 'figure'),
-         Output('ct-violin-plot', 'figure'),
-         Output('ct-bivariate-scatter', 'figure'),
-         Output('ct-aggregate-waveform', 'figure'),
+        [Output('ct-filtered-data-store', 'data'),
          Output('ct-query-error-msg', 'children')],
         [Input('ct-update-btn', 'n_clicks'),
          Input('ct-apply-query-btn', 'n_clicks')],
         [State('ct-part-dd', 'value'),        
          State('ct-shoe-dd', 'value'),
          State('ct-speed-dd', 'value'),
-         State('ct-metric-dd', 'value'),
-         State('ct-scatter-x-dd', 'value'),
-         State('ct-group-dd', 'value'),
-         State('ct-color-dd', 'value'),
-         State('ct-granularity-dd', 'value'),
-         State('ct-query-input', 'value')]
+         State({'type': 'query-input', 'tab': 'cross'}, 'value')]
     )
-    def update_cross_trial_plots(update_clicks, apply_clicks, parts, shoes, speeds, metric_y, metric_x, group, color, granularity, query_string):
+    def ct_master_data_controller(update_clicks, apply_clicks, parts, shoes, speeds, query_string):
+        # Initialisation guard: neither button has been clicked yet.
         if update_clicks == 0 and apply_clicks == 0:
-            empty_fig = graphics.get_empty_physics_layout("Awaiting Execution")
-            return go.Figure(layout=empty_fig), go.Figure(layout=empty_fig), go.Figure(layout=empty_fig), go.Figure(layout=empty_fig), ""
-        
-        # 1. Fetch RAW Data
-        df = data.fetch_cross_trial_data(part_ids=parts, shoes=shoes, speeds=speeds) 
-        
-        if df.empty:
-            empty_fig = graphics.get_empty_physics_layout("No Data Matching Criteria")
-            return go.Figure(layout=empty_fig), go.Figure(layout=empty_fig), go.Figure(layout=empty_fig), go.Figure(layout=empty_fig), ""
+            return None, ""
 
-        # 2. Apply Free-Form Query Filtering (BEFORE Aggregation)
-        from helpers import apply_advanced_query, apply_data_granularity
-        error_msg = ""
+        # 1. Fetch raw data from DB
+        df = data.fetch_cross_trial_data(part_ids=parts, shoes=shoes, speeds=speeds)
+
+        if df.empty:
+            return {'raw_step_ids': [], 'raw_df_json': None}, ""
+
+        # 2. Apply free-form query (BEFORE granularity aggregation)
         if query_string:
             df, error_msg = apply_advanced_query(df, query_string)
-            if error_msg: # If user typed an invalid query, halt and show error
-                empty_fig = graphics.get_empty_physics_layout("Query Error")
-                return go.Figure(layout=empty_fig), go.Figure(layout=empty_fig), go.Figure(layout=empty_fig), go.Figure(layout=empty_fig), error_msg
-            if df.empty:  # If the query was valid but filtered out 100% of the footsteps
-                empty_fig = graphics.get_empty_physics_layout("Query Filtered All Data")
-                return go.Figure(layout=empty_fig), go.Figure(layout=empty_fig), go.Figure(layout=empty_fig), go.Figure(layout=empty_fig), ""
+            if error_msg:
+                return None, error_msg
+            if df.empty:
+                return {'raw_step_ids': [], 'raw_df_json': None}, ""
 
-        # 3. Extract RAW step IDs for the Waveform
+        # 3. Extract raw step IDs for the aggregate waveform (pre-aggregation)
         raw_step_ids = df['footstep_id'].tolist() if 'footstep_id' in df.columns else []
 
-        # 4. Apply Granularity Aggregation
+        # 4. Serialise the filtered DataFrame so the renderer doesn't re-fetch
+        return {
+            'raw_step_ids': raw_step_ids,
+            'raw_df_json': df.to_json(date_format='iso', orient='split')
+        }, ""
+
+
+    # J. UPDATE CROSS-TRIAL PLOTS
+    #
+    # Pure renderer: reads pre-filtered data from ct-filtered-data-store,
+    # applies granularity aggregation, and builds the four figures.
+    # No data fetching, no query logic — those live in ct_master_data_controller.
+    @app.callback(
+        [Output('ct-box-plot', 'figure'),
+         Output('ct-violin-plot', 'figure'),
+         Output('ct-bivariate-scatter', 'figure'),
+         Output('ct-aggregate-waveform', 'figure')],
+        [Input('ct-filtered-data-store', 'data'),
+         Input('ct-granularity-dd', 'value'),
+         Input('ct-metric-dd', 'value'),
+         Input('ct-scatter-x-dd', 'value'),
+         Input('ct-group-dd', 'value'),
+         Input('ct-color-dd', 'value')]
+    )
+    def update_cross_trial_plots(ct_store, granularity, metric_y, metric_x, group, color):
+        # Store is None on initial load (before either button is clicked)
+        if ct_store is None:
+            return _empty_ct_figures("Awaiting Execution")
+
+        raw_df_json = ct_store.get('raw_df_json')
+        raw_step_ids = ct_store.get('raw_step_ids', [])
+
+        if not raw_df_json:
+            return _empty_ct_figures("No Data Matching Criteria")
+
+        # 1. Deserialise the pre-filtered DataFrame
+        df = pd.read_json(raw_df_json, orient='split')
+
+        if df.empty:
+            return _empty_ct_figures("No Data Matching Criteria")
+
+        # 2. Apply granularity aggregation
         df_agg = apply_data_granularity(df, granularity)
         safe_group = group if group in df_agg.columns else None
         safe_color = color if color in df_agg.columns else None
 
-        # 5. Generate Plots
-        box_fig = graphics.create_box_plot(df_agg, y_col=metric_y, x_col=safe_group, color_col=safe_color)
-        violin_fig = graphics.create_violin_plot(df_agg, y_col=metric_y, x_col=safe_group, color_col=safe_color)
+        # 3. Build figures
+        box_fig     = graphics.create_box_plot(df_agg, y_col=metric_y, x_col=safe_group, color_col=safe_color)
+        violin_fig  = graphics.create_violin_plot(df_agg, y_col=metric_y, x_col=safe_group, color_col=safe_color)
         scatter_fig = graphics.create_bivariate_scatter_plot(df_agg, y_col=metric_y, x_col=metric_x, color_col=safe_color)
-        
+
         time_pct, mean_grf, upper_bound, lower_bound = data.fetch_aggregate_waveforms(raw_step_ids)
         wave_fig = graphics.create_aggregate_waveform_plot(time_pct, mean_grf, upper_bound, lower_bound)
-        
-        return box_fig, violin_fig, scatter_fig, wave_fig, ""
-    
-    # J. THE BRIDGE (Part 1: Capture the Click)
+
+        return box_fig, violin_fig, scatter_fig, wave_fig
+
+    # K. THE BRIDGE (Part 1: Capture the Click)
     @app.callback(
         Output('bridge-store', 'data'),
         [Input('ct-box-plot', 'clickData'),
@@ -368,18 +425,18 @@ def register_callbacks(app):
                 c_data = point['customdata']
                 
                 return {
-                    'part': c_data[0] if len(c_data) > 0 else None,
-                    'shoe': c_data[1] if len(c_data) > 1 else None,
-                    'speed': c_data[2] if len(c_data) > 2 else None
+                    'part': str(c_data[0]).zfill(3) if c_data[0] is not None else None,
+                    'shoe': str(c_data[1]) if c_data[1] is not None else None,
+                    'speed': str(c_data[2]) if c_data[2] is not None else None
                 }
         return no_update
 
-    # K. THE BRIDGE (Part 2: Execute Navigation)
+    # L. THE BRIDGE (Part 2: Execute Navigation)
     @app.callback(
         [Output('part-dd', 'value'),
          Output('shoe-dd', 'value'),
          Output('speed-dd', 'value'),
-         Output('master-tabs', 'value')], # forces the UI to flip back to Single-Trial
+         Output('master-tabs', 'value')],
         Input('bridge-store', 'data'),
         prevent_initial_call=True
     )
@@ -387,15 +444,16 @@ def register_callbacks(app):
         if bridge_data:
             return bridge_data['part'], bridge_data['shoe'], bridge_data['speed'], 'tab-single-trial'
         return no_update
-    
+
+    # M. CONSTRAIN GROUP/COLOR DROPDOWNS BASED ON GRANULARITY
     @app.callback(
-    [Output('ct-group-dd', 'options'),
-     Output('ct-group-dd', 'value'),
-     Output('ct-color-dd', 'options'),
-     Output('ct-color-dd', 'value')],
-    [Input('ct-granularity-dd', 'value')],
-    [State('ct-group-dd', 'value'),
-     State('ct-color-dd', 'value')]
+        [Output('ct-group-dd', 'options'),
+         Output('ct-group-dd', 'value'),
+         Output('ct-color-dd', 'options'),
+         Output('ct-color-dd', 'value')],
+        [Input('ct-granularity-dd', 'value')],
+        [State('ct-group-dd', 'value'),
+         State('ct-color-dd', 'value')]
     )
     def constrain_group_color_dropdowns(granularity, current_group, current_color):
         """
@@ -407,16 +465,16 @@ def register_callbacks(app):
         compatible = GRANULARITY_COMPATIBLE_GROUPS.get(granularity, set())
 
         all_group_options = [
-            {'label': 'Footwear Type',   'value': 'footwear'},
-            {'label': 'Walking Speed',   'value': 'speed'},
-            {'label': 'Biological Sex',  'value': 'sex'},
-            {'label': 'Participant ID',  'value': 'participant_id'},
+            {'label': 'Footwear Type',     'value': 'footwear'},
+            {'label': 'Walking Speed',     'value': 'speed'},
+            {'label': 'Biological Sex',    'value': 'sex'},
+            {'label': 'Participant ID',    'value': 'participant_id'},
         ]
         all_color_options = [
-            {'label': 'None',            'value': NO_COLOR_SENTINEL},
-            {'label': 'Footwear Type',   'value': 'footwear'},
-            {'label': 'Walking Speed',   'value': 'speed'},
-            {'label': 'Biological Sex',  'value': 'sex'},
+            {'label': 'None',              'value': NO_COLOR_SENTINEL},
+            {'label': 'Footwear Type',     'value': 'footwear'},
+            {'label': 'Walking Speed',     'value': 'speed'},
+            {'label': 'Biological Sex',    'value': 'sex'},
             {'label': 'Side (Left/Right)', 'value': 'side'},
         ]
 
@@ -429,7 +487,6 @@ def register_callbacks(app):
             for opt in all_color_options
         ]
 
-        # If the current selection has become invalid, reset to a safe default
         valid_group = current_group if current_group in compatible else next(
             (opt['value'] for opt in all_group_options if opt['value'] in compatible), None
         )
@@ -438,12 +495,3 @@ def register_callbacks(app):
         ) else NO_COLOR_SENTINEL
 
         return group_options, valid_group, color_options, valid_color
-
-    # L. CLEAR CROSS-TRIAL QUERY
-    @app.callback(
-        Output('ct-query-input', 'value'),
-        Input('ct-clear-query-btn', 'n_clicks'),
-        prevent_initial_call=True
-    )
-    def clear_ct_query(n_clicks):
-        return ""

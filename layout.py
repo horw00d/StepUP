@@ -39,7 +39,6 @@ def with_spinner(component):
         children=component
     )
 
-
 # =====================================================================
 # TAB 1: SINGLE-TRIAL ANALYSIS LAYOUT
 # =====================================================================
@@ -79,15 +78,16 @@ def get_single_trial_layout():
             ]),
 
             # ADVANCED QUERY BUILDER (Row 2)
-            html.Div(style={'borderTop': '1px solid #ccc', 'paddingTop': '15px', 'display': 'flex', 'flexDirection': 'column', 'gap': '10px'}, children=[
+            html.Div(style={'backgroundColor': '#f1f1f1', 'padding': '15px', 'borderRadius': '5px', 'marginBottom': '20px', 'display': 'flex', 'flexDirection': 'column', 'gap': '10px'}, children=[
                 html.Div(style={'display': 'flex', 'alignItems': 'center', 'gap': '10px'}, children=[
                     html.Label("Advanced Query:", style={'fontWeight': 'bold', 'whiteSpace': 'nowrap'}),
-                    dcc.Input(id='st-query-input', type='text', placeholder="e.g., mean_grf > 200 and side == 'Left'", debounce=True, style={'flex': '1', 'padding': '0 12px', 'height': '38px', 'boxSizing': 'border-box', 'borderRadius': '4px', 'border': '1px solid #ccc'}),
-                    html.Button('Apply', id='apply-query-btn', n_clicks=0, style={'height': '38px', 'padding': '0 15px', 'backgroundColor': '#007BFF', 'color': 'white', 'border': 'none', 'borderRadius': '4px', 'cursor': 'pointer', 'fontWeight': 'bold'}),
-                    html.Button('Clear', id='st-clear-query-btn', n_clicks=0, style={'height': '38px', 'padding': '0 15px', 'backgroundColor': '#6c757d', 'color': 'white', 'border': 'none', 'borderRadius': '4px', 'cursor': 'pointer'})
+                    # UPDATE THESE TWO IDs:
+                    dcc.Input(id={'type': 'query-input', 'tab': 'single'}, type='text', placeholder="e.g., peak_grf > 800 and is_outlier == 'Normal'", debounce=True, style={'flex': '1', 'padding': '0 12px', 'height': '38px', 'boxSizing': 'border-box', 'borderRadius': '4px', 'border': '1px solid #ccc'}),
+                    html.Button('Apply', id='st-apply-query-btn', n_clicks=0, style={'height': '38px', 'padding': '0 15px', 'backgroundColor': '#007BFF', 'color': 'white', 'border': 'none', 'borderRadius': '4px', 'cursor': 'pointer', 'fontWeight': 'bold'}),
+                    html.Button('Clear', id={'type': 'clear-query-btn', 'tab': 'single'}, n_clicks=0, style={'height': '38px', 'padding': '0 15px', 'backgroundColor': '#6c757d', 'color': 'white', 'border': 'none', 'borderRadius': '4px', 'cursor': 'pointer'})
                 ]),
-                html.Div(id='query-error-msg', style={'color': 'red', 'fontWeight': 'bold', 'fontSize': '0.9em', 'minHeight': '15px'}),
-            ])
+                html.Div(id='st-query-error-msg', style={'color': 'red', 'fontWeight': 'bold', 'fontSize': '0.9em', 'minHeight': '15px'}),
+            ]),
         ]),
 
         # --- VISUALIZATION SECTIONS ---
@@ -187,34 +187,31 @@ def get_cross_trial_layout():
             ])
         ]),
 
-        # advanced query builder for cross-trial tab
+        # --- ZONE 1B: ADVANCED QUERY BUILDER ---
         html.Div(style={'backgroundColor': '#f1f1f1', 'padding': '15px', 'borderRadius': '5px', 'marginBottom': '20px', 'display': 'flex', 'flexDirection': 'column', 'gap': '10px'}, children=[
             html.Div(style={'display': 'flex', 'alignItems': 'center', 'gap': '10px'}, children=[
                 html.Label("Advanced Query:", style={'fontWeight': 'bold', 'whiteSpace': 'nowrap'}),
-                dcc.Input(id='ct-query-input', type='text', placeholder="e.g., age >= 60 and peak_grf < 600", debounce=True, style={'flex': '1', 'padding': '0 12px', 'height': '38px', 'boxSizing': 'border-box', 'borderRadius': '4px', 'border': '1px solid #ccc'}),
+                dcc.Input(id={'type': 'query-input', 'tab': 'cross'}, type='text', placeholder="e.g., age >= 60 and peak_grf < 600", debounce=True, style={'flex': '1', 'padding': '0 12px', 'height': '38px', 'boxSizing': 'border-box', 'borderRadius': '4px', 'border': '1px solid #ccc'}),
                 html.Button('Apply', id='ct-apply-query-btn', n_clicks=0, style={'height': '38px', 'padding': '0 15px', 'backgroundColor': '#007BFF', 'color': 'white', 'border': 'none', 'borderRadius': '4px', 'cursor': 'pointer', 'fontWeight': 'bold'}),
-                html.Button('Clear', id='ct-clear-query-btn', n_clicks=0, style={'height': '38px', 'padding': '0 15px', 'backgroundColor': '#6c757d', 'color': 'white', 'border': 'none', 'borderRadius': '4px', 'cursor': 'pointer'})
+                html.Button('Clear', id={'type': 'clear-query-btn', 'tab': 'cross'}, n_clicks=0, style={'height': '38px', 'padding': '0 15px', 'backgroundColor': '#6c757d', 'color': 'white', 'border': 'none', 'borderRadius': '4px', 'cursor': 'pointer'})
             ]),
             html.Div(id='ct-query-error-msg', style={'color': 'red', 'fontWeight': 'bold', 'fontSize': '0.9em', 'minHeight': '15px'}),
         ]),
 
         # --- ZONE 2: PLOT CONFIGURATION & EXECUTION ---
         html.Div(style={'display': 'flex', 'gap': '15px', 'marginBottom': '20px', 'alignItems': 'stretch'}, children=[
-            #granularity selector
             html.Div(style={'flex': '1', 'border': '1px solid #ccc', 'padding': '10px', 'borderRadius': '5px', 'backgroundColor': '#f9f9f9'}, children=[
                 html.Label("Data Granularity:", style={'fontWeight': 'bold', 'fontSize': '0.9em'}),
                 dcc.Dropdown(id='ct-granularity-dd', options=[
-                    {'label': 'Footstep',              'value': 'footstep'},
-                    {'label': 'Trial',      'value': 'trial'},
+                    {'label': 'Footstep',    'value': 'footstep'},
+                    {'label': 'Trial',       'value': 'trial'},
                     {'label': 'Participant', 'value': 'participant'}
                 ], value='footstep', clearable=False)
             ]),
-            #primary y axis selector
             html.Div(style={'flex': '1', 'border': '1px solid #ccc', 'padding': '10px', 'borderRadius': '5px', 'backgroundColor': '#f9f9f9'}, children=[
                 html.Label("Primary Metric (Y-Axis):", style={'fontWeight': 'bold', 'fontSize': '0.9em'}),
                 dcc.Dropdown(id='ct-metric-dd', options=FEATURE_OPTIONS, value='peak_grf', clearable=False)
             ]),
-            #scatter x axis selector
             html.Div(style={'flex': '1', 'border': '1px solid #ccc', 'padding': '10px', 'borderRadius': '5px', 'backgroundColor': '#f9f9f9'}, children=[
                 html.Label("Scatter Metric (X-Axis):", style={'fontWeight': 'bold', 'fontSize': '0.9em'}),
                 dcc.Dropdown(id='ct-scatter-x-dd', options=FEATURE_OPTIONS, value='stance_duration_frames', clearable=False)
@@ -229,14 +226,14 @@ def get_cross_trial_layout():
             ]),
             html.Div(style={'flex': '0.7', 'display': 'flex', 'alignItems': 'flex-end'}, children=[
                 html.Button('Update Charts', id='ct-update-btn', n_clicks=0, style={
-                    'height': '100%', 'width': '100%', 'minHeight': '50px', 
-                    'backgroundColor': '#28a745', 'color': 'white', 'border': 'none', 
+                    'height': '100%', 'width': '100%', 'minHeight': '50px',
+                    'backgroundColor': '#28a745', 'color': 'white', 'border': 'none',
                     'borderRadius': '5px', 'fontWeight': 'bold', 'cursor': 'pointer', 'fontSize': '1.05em'
                 })
             ])
         ]),
 
-        # --- ZONE 3: VISUALIZATIONS (2x2 Grid)
+        # --- ZONE 3: VISUALIZATIONS (2x2 Grid) ---
         html.Div(style={'display': 'flex', 'flexDirection': 'column', 'gap': '20px'}, children=[
             
             # Row 1: Distributions
@@ -251,11 +248,9 @@ def get_cross_trial_layout():
             
             # Row 2: Correlations and Time-Series
             html.Div(style={'display': 'flex', 'gap': '20px', 'height': '450px'}, children=[
-                #Bivariate Scatter Plot
                 html.Div(style={'flex': '1', 'border': '1px solid #ddd', 'borderRadius': '5px', 'backgroundColor': 'white', 'padding': '10px'}, children=[
                     with_spinner(dcc.Graph(id='ct-bivariate-scatter', style={'height': '100%'}))
                 ]),
-                #Aggregate Waveform Plot
                 html.Div(style={'flex': '1', 'border': '1px solid #ddd', 'borderRadius': '5px', 'backgroundColor': 'white', 'padding': '10px'}, children=[
                     with_spinner(dcc.Graph(id='ct-aggregate-waveform', style={'height': '100%'}))
                 ])
@@ -269,13 +264,15 @@ def get_cross_trial_layout():
 def create_layout():
     return html.Div(style={'height': '100vh', 'display': 'flex', 'flexDirection': 'column', 'padding': '20px'}, children=[
         
-        # Global State Stores (Accessible to ALL tabs)
+        # --- GLOBAL STATE STORES ---
+        # Single-trial stores
         dcc.Store(id='selected-step-store'),
         dcc.Store(id='physics-cache', storage_type='memory'),
         dcc.Store(id='filtered-data-store'),
-        
-        #bridge store: Used to command the single-trial view to load a specific trial
-        dcc.Store(id='bridge-store'), 
+        # Cross-trial stores
+        dcc.Store(id='ct-filtered-data-store'),
+        # Navigation bridge: commands the single-trial view to load a specific trial
+        dcc.Store(id='bridge-store'),
 
         html.H2("StepUP Analysis", style={'marginBottom': '20px'}),
 

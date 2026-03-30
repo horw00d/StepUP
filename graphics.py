@@ -31,6 +31,18 @@ def generate_dynamic_hover_data(df):
     # Build the dictionary dynamically: only add the column if it survived the aggregation
     return {col: True for col in desired_hover_cols if col in df.columns}
 
+def get_custom_data(df):
+    """
+    returns first 3 indices of Plotly's customdata array.
+    guarantees index 0=participant, 1=footwear, 2=speed for the Bridge callback,
+    padding with None if the column was removed during aggregation.
+    """
+    return [
+        df['participant_id'] if 'participant_id' in df.columns else [None]*len(df),
+        df['footwear'] if 'footwear' in df.columns else [None]*len(df),
+        df['speed'] if 'speed' in df.columns else [None]*len(df)
+    ]
+
 def resolve_color_arg(color_col: str) -> str | None:
     """
     Converts the UI's no-color sentinel value into a Python None,
@@ -452,7 +464,7 @@ def create_box_plot(df, y_col, x_col, color_col):
         points="all",
         title=f"Distribution of {y_col} by {x_col}",
         color_discrete_map=COLOR_MAP,
-        custom_data=[col for col in ['participant_id', 'footwear', 'speed'] if col in df.columns],
+        custom_data=get_custom_data(df),
         hover_data=generate_dynamic_hover_data(df)
     )
 
@@ -470,7 +482,7 @@ def create_violin_plot(df, y_col, x_col, color_col):
         box=True,
         title=f"Density Shape of {y_col} by {x_col}",
         color_discrete_map=COLOR_MAP,
-        custom_data=[col for col in ['participant_id', 'footwear', 'speed'] if col in df.columns],
+        custom_data=get_custom_data(df),
         hover_data=generate_dynamic_hover_data(df)
     )
 
@@ -492,7 +504,7 @@ def create_bivariate_scatter_plot(df, y_col, x_col, color_col):
         trendline="ols",
         title=f"Correlation of {x_col.replace('_', ' ').title()} and {y_col.replace('_', ' ').title()}",
         color_discrete_map=COLOR_MAP,
-        custom_data=[col for col in ['participant_id', 'footwear', 'speed'] if col in df.columns],
+        custom_data=get_custom_data(df),
         hover_data=generate_dynamic_hover_data(df)
     )
 
