@@ -22,6 +22,14 @@ SAMPLING_FREQ = 100
 SENSOR_SIZE = 0.005
 TILE_SIZE = 0.6
 
+# define standard colors for consistency across app
+COLOUR_MAP = {
+    'Left': '#1f77b4',  # Muted Blue
+    'Right': '#2ca02c', # Muted Green
+    'Normal': '#7f7f7f', # Gray
+    'Outlier': '#d62728' # Red
+}
+
 NO_COLOR_SENTINEL = 'none'
 
 class Granularity:
@@ -31,7 +39,19 @@ class Granularity:
 
 # config.py
 GRANULARITY_COMPATIBLE_GROUPS = {
-    'footstep': {'footwear', 'speed', 'sex', 'participant_id', 'side'},
-    'trial': {'footwear', 'speed', 'sex', 'participant_id', 'side'},
-    'participant': {'sex'},
+    'footstep': {'footwear', 'speed', 'sex', 'side', 'participant_id', 'is_outlier'},
+    'trial': {'footwear', 'speed', 'sex', 'side', 'participant_id', 'is_outlier'},
+    'participant': {'sex', 'side', 'participant_id', 'is_outlier'}
 }
+
+TRIAL_GROUP_KEYS = ['participant_id', 'footwear', 'speed', 'sex', 'side', 'is_outlier']
+PARTICIPANT_GROUP_KEYS = ['participant_id', 'sex', 'side', 'is_outlier']
+
+DESIRED_HOVER_COLS = [
+        'participant_id', 
+        'side', 
+        'footwear', 
+        'speed', 
+        'is_outlier',
+        'n_footsteps'
+    ]

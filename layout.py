@@ -39,6 +39,58 @@ def with_spinner(component):
         children=component
     )
 
+def get_dynamic_outlier_layout(tab_name):
+    """
+    Returns a DRY, pattern-matched UI block for Dynamic Thresholding.
+    """
+    return html.Div(style={'backgroundColor': '#eef2f5', 'padding': '15px', 'borderRadius': '5px', 'marginBottom': '20px', 'display': 'flex', 'flexDirection': 'column', 'gap': '10px', 'border': '1px solid #d1d9e0'}, children=[
+        html.Label("Dynamic Outlier Classification:", style={'fontWeight': 'bold', 'color': '#2c3e50'}),
+        html.Div(style={'display': 'flex', 'alignItems': 'center', 'gap': '10px'}, children=[
+            
+            # 1. metric selector
+            dcc.Dropdown(
+                id={'type': 'outlier-metric', 'tab': tab_name},
+                options=[
+                    {'label': 'R-Score', 'value': 'r_score'},
+                    {'label': 'Peak GRF', 'value': 'peak_grf'},
+                    {'label': 'Stance Duration', 'value': 'stance_duration_frames'}
+                ],
+                value='r_score',
+                clearable=False,
+                style={'minWidth': '180px'}
+            ),
+            
+            # 2. logical operator
+            dcc.Dropdown(
+                id={'type': 'outlier-operator', 'tab': tab_name},
+                options=[
+                    {'label': 'Less Than (<)', 'value': '<'},
+                    {'label': 'Greater Than (>)', 'value': '>'}
+                ],
+                value='<',
+                clearable=False,
+                style={'minWidth': '150px'}
+            ),
+            
+            # 3. threshold input
+            dcc.Input(
+                id={'type': 'outlier-threshold', 'tab': tab_name},
+                type='number',
+                value=0.85, 
+                step=0.01,
+                style={'flex': '1', 'padding': '0 12px', 'height': '38px', 'boxSizing': 'border-box', 'borderRadius': '4px', 'border': '1px solid #ccc'}
+            ),
+            
+            # 4. apply button
+            html.Button(
+                'Apply Threshold', 
+                id={'type': 'outlier-apply-btn', 'tab': tab_name}, 
+                n_clicks=0, 
+                style={'height': '38px', 'padding': '0 15px', 'backgroundColor': '#007BFF', 'color': 'white', 'border': 'none', 'borderRadius': '4px', 'cursor': 'pointer', 'fontWeight': 'bold'}
+            )
+        ])
+    ])
+
 # =====================================================================
 # TAB 1: SINGLE-TRIAL ANALYSIS LAYOUT
 # =====================================================================
@@ -77,7 +129,9 @@ def get_single_trial_layout():
                 ]),
             ]),
 
-            # ADVANCED QUERY BUILDER (Row 2)
+            get_dynamic_outlier_layout('single'),
+
+            # ADVANCED QUERY BUILDER
             html.Div(style={'backgroundColor': '#f1f1f1', 'padding': '15px', 'borderRadius': '5px', 'marginBottom': '20px', 'display': 'flex', 'flexDirection': 'column', 'gap': '10px'}, children=[
                 html.Div(style={'display': 'flex', 'alignItems': 'center', 'gap': '10px'}, children=[
                     html.Label("Advanced Query:", style={'fontWeight': 'bold', 'whiteSpace': 'nowrap'}),
@@ -187,7 +241,9 @@ def get_cross_trial_layout():
             ])
         ]),
 
-        # --- ZONE 1B: ADVANCED QUERY BUILDER ---
+        get_dynamic_outlier_layout('cross'),
+
+        # ADVANCED QUERY BUILDER
         html.Div(style={'backgroundColor': '#f1f1f1', 'padding': '15px', 'borderRadius': '5px', 'marginBottom': '20px', 'display': 'flex', 'flexDirection': 'column', 'gap': '10px'}, children=[
             html.Div(style={'display': 'flex', 'alignItems': 'center', 'gap': '10px'}, children=[
                 html.Label("Advanced Query:", style={'fontWeight': 'bold', 'whiteSpace': 'nowrap'}),

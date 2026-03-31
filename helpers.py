@@ -1,6 +1,7 @@
 import re
 import pandas as pd
-from config import ALLOWED_COLUMNS, ALLOWED_KEYWORDS
+import numpy as np
+from config import ALLOWED_COLUMNS, ALLOWED_KEYWORDS, TRIAL_GROUP_KEYS, PARTICIPANT_GROUP_KEYS
 
 def apply_advanced_query(df, query_string):
     """
@@ -82,8 +83,6 @@ def validate_query_string(query_string):
 # This is a conscious biomechanical decision: symmetric metrics (GRF, stance duration,
 # foot dimensions) are valid to average across sides. Laterality analysis belongs
 # at footstep or trial granularity where side remains a grouping key.
-TRIAL_GROUP_KEYS       = ['participant_id', 'footwear', 'speed', 'sex', 'side']
-PARTICIPANT_GROUP_KEYS = ['participant_id', 'sex']
 
 
 def apply_data_granularity(df, granularity):
@@ -137,3 +136,27 @@ def apply_data_granularity(df, granularity):
     except Exception as e:
         print(f"Warning: Granularity aggregation failed for '{granularity}': {e}")
         return df
+
+def apply_dynamic_outliers(df, metric, operator, threshold):
+    """
+    Dynamically reclassifies the 'is_outlier' column using vectorized NumPy math.
+    Extensible design allows checking any metric with any standard operator.
+    """
+    # Safety checks: if inputs are missing or invalid, return the unmodified DataFrame
+    if df.empty or not metric or threshold is None or operator not in ['<', '>']:
+        return df
+        
+    # Ensure the requested metric actually exists in the current DataFrame
+    if metric not in df.columns:
+        return df
+        
+    # Build the vectorized boolean mask based on the selected operator
+    if operator == '<':
+        condition = df[metric] < threshold
+    else:
+        condition = df[metric] > threshold
+        
+    # Overwrite the static database flags with the new dynamic classification
+    df['is_outlier'] = np.where(condition, 'Outlier', 'Normal')
+    
+    return df

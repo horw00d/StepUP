@@ -42,37 +42,44 @@ def register_callbacks(app):
     # =====================================================================
 
     # MASTER: Master Data Controller
-    # MASTER: Master Data Controller
     @app.callback(
         [Output('filtered-data-store', 'data'),
-         Output('trial-status', 'children'), # Restored to match layout.py
+         Output('trial-status', 'children'), 
          Output('st-query-error-msg', 'children')],
         [Input('part-dd', 'value'),
          Input('shoe-dd', 'value'),
          Input('speed-dd', 'value'),
-         Input('filter-side', 'value'),       # Restored
-         Input('filter-outlier', 'value'),    # Restored
-         Input('filter-tile', 'value'),       # Restored
-         Input('filter-pass', 'value'),       # Restored
+         Input('filter-side', 'value'),       
+         Input('filter-outlier', 'value'),    
+         Input('filter-tile', 'value'),       
+         Input('filter-pass', 'value'),       
          Input('st-apply-query-btn', 'n_clicks'),
-         Input({'type': 'query-input', 'tab': 'single'}, 'value')] # The new MATCH ID
+         Input({'type': 'query-input', 'tab': 'single'}, 'value'),
+         Input({'type': 'outlier-apply-btn', 'tab': 'single'}, 'n_clicks')], 
+        [
+         State({'type': 'outlier-metric', 'tab': 'single'}, 'value'),
+         State({'type': 'outlier-operator', 'tab': 'single'}, 'value'),
+         State({'type': 'outlier-threshold', 'tab': 'single'}, 'value')]
     )
-    def master_data_controller(part, shoe, speed, sides, outliers, tiles, passes, apply_clicks, query_string):
+    def master_data_controller(part, shoe, speed, sides, outliers, tiles, passes, query_clicks, query_string, out_clicks, out_metric, out_op, out_thresh):
         if not (part and shoe and speed):
             return {'valid_ids': []}, "No Trial Selected", ""
 
-        # Fetch from DB exactly ONE time per user interaction
+        # 1. Fetch from DB
         trial, steps, df = data.fetch_trial_data(part, shoe, speed)
         if not trial:
             return {'valid_ids': []}, "No Data", ""
 
-        # Run the heavy Pandas filtering logic
+        # 2. Apply Dynamic Outlier Reclassification
+        from helpers import apply_dynamic_outliers
+        df = apply_dynamic_outliers(df, out_metric, out_op, out_thresh)
+
+        # 3. Apply standard UI and Advanced Query filters
         df_filtered, error_msg = filter_dataframe(df, sides, outliers, tiles, passes, query_string)
 
         valid_ids = df_filtered['id'].tolist() if not df_filtered.empty else []
         status = f"Trial: {part}-{shoe}-{speed} ({len(valid_ids)} steps)"
 
-        # Broadcast the state to the front-end
         return {'valid_ids': valid_ids}, status, error_msg
 
 
@@ -320,39 +327,43 @@ def register_callbacks(app):
         [Output('ct-filtered-data-store', 'data'),
          Output('ct-query-error-msg', 'children')],
         [Input('ct-update-btn', 'n_clicks'),
-         Input('ct-apply-query-btn', 'n_clicks')],
+         Input('ct-apply-query-btn', 'n_clicks'),
+         Input({'type': 'outlier-apply-btn', 'tab': 'cross'}, 'n_clicks')],
         [State('ct-part-dd', 'value'),        
          State('ct-shoe-dd', 'value'),
          State('ct-speed-dd', 'value'),
-         State({'type': 'query-input', 'tab': 'cross'}, 'value')]
+         State({'type': 'query-input', 'tab': 'cross'}, 'value'),
+         State({'type': 'outlier-metric', 'tab': 'cross'}, 'value'),
+         State({'type': 'outlier-operator', 'tab': 'cross'}, 'value'),
+         State({'type': 'outlier-threshold', 'tab': 'cross'}, 'value')]
     )
-    def ct_master_data_controller(update_clicks, apply_clicks, parts, shoes, speeds, query_string):
-        # Initialisation guard: neither button has been clicked yet.
-        if update_clicks == 0 and apply_clicks == 0:
+    def ct_master_data_controller(update_clicks, query_clicks, out_clicks, parts, shoes, speeds, query_string, out_metric, out_op, out_thresh):
+        # We check all three buttons to prevent initial load firing if desired
+        if update_clicks == 0 and query_clicks == 0 and out_clicks == 0:
             return None, ""
-
-        # 1. Fetch raw data from DB
-        df = data.fetch_cross_trial_data(part_ids=parts, shoes=shoes, speeds=speeds)
-
+            
+        # 1. Fetch RAW Data
+        df = data.fetch_cross_trial_data(part_ids=parts, shoes=shoes, speeds=speeds) 
         if df.empty:
-            return {'raw_step_ids': [], 'raw_df_json': None}, ""
+            return {'raw_df_json': None, 'raw_step_ids': []}, ""
 
-        # 2. Apply free-form query (BEFORE granularity aggregation)
+        # 2. Apply Dynamic Outlier Reclassification
+        from helpers import apply_dynamic_outliers
+        df = apply_dynamic_outliers(df, out_metric, out_op, out_thresh)
+
+        # 3. Apply Free-Form Query Filtering
+        error_msg = ""
         if query_string:
+            from helpers import apply_advanced_query
             df, error_msg = apply_advanced_query(df, query_string)
-            if error_msg:
-                return None, error_msg
-            if df.empty:
-                return {'raw_step_ids': [], 'raw_df_json': None}, ""
+            if error_msg or df.empty: 
+                return {'raw_df_json': None, 'raw_step_ids': []}, error_msg
 
-        # 3. Extract raw step IDs for the aggregate waveform (pre-aggregation)
+        # 4. Extract RAW step IDs and serialize
         raw_step_ids = df['footstep_id'].tolist() if 'footstep_id' in df.columns else []
-
-        # 4. Serialise the filtered DataFrame so the renderer doesn't re-fetch
-        return {
-            'raw_step_ids': raw_step_ids,
-            'raw_df_json': df.to_json(date_format='iso', orient='split')
-        }, ""
+        raw_df_json = df.to_json(orient='split')
+        
+        return {'raw_df_json': raw_df_json, 'raw_step_ids': raw_step_ids}, ""
 
 
     # J. UPDATE CROSS-TRIAL PLOTS
@@ -476,6 +487,7 @@ def register_callbacks(app):
             {'label': 'Walking Speed',     'value': 'speed'},
             {'label': 'Biological Sex',    'value': 'sex'},
             {'label': 'Side (Left/Right)', 'value': 'side'},
+            {'label': 'Outlier Status',     'value': 'is_outlier'},
         ]
 
         group_options = [

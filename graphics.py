@@ -2,10 +2,10 @@ import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
 import numpy as np
-from config import NO_COLOR_SENTINEL
+from config import NO_COLOR_SENTINEL, DESIRED_HOVER_COLS, COLOUR_MAP
 
 # define standard colors for consistency across app
-COLOR_MAP = {
+COLOUR_MAP = {
     'Left': '#1f77b4',  # Muted Blue
     'Right': '#2ca02c', # Muted Green
     'Normal': '#7f7f7f', # Gray
@@ -20,13 +20,7 @@ def generate_dynamic_hover_data(df):
     Only includes keys that currently exist in the DataFrame to prevent Plotly validation errors.
     """
     # List all the columns you ever want to see in a tooltip, in the order you want them
-    desired_hover_cols = [
-        'participant_id', 
-        'side', 
-        'footwear', 
-        'speed',  
-        'n_footsteps'
-    ]
+    desired_hover_cols = DESIRED_HOVER_COLS
     
     # Build the dictionary dynamically: only add the column if it survived the aggregation
     return {col: True for col in desired_hover_cols if col in df.columns}
@@ -145,7 +139,7 @@ def create_scatter_plot(df, x_col, y_col, color_col, selected_step_id=None):
     
     for name, group in groups:
         # check if there is a preset color (e.g., Left/Right), otherwise let Plotly cycle defaults
-        preset_color = COLOR_MAP.get(name, None)
+        preset_color = COLOUR_MAP.get(name, None)
         
         marker_settings = dict(size=10, opacity=0.7)
         if preset_color:
@@ -205,7 +199,7 @@ def create_rug_plot(df, rug_col, color_col, selected_step_id=None):
     groups = df.groupby(color_col)
     
     for name, group in groups:
-        marker_color = COLOR_MAP.get(name, None)
+        marker_color = COLOUR_MAP.get(name, None)
         
         # Simulate Rug plot using Scatter where y=0
         fig.add_trace(go.Scatter(
@@ -463,7 +457,7 @@ def create_box_plot(df, y_col, x_col, color_col):
         color=resolve_color_arg(color_col),
         points="all",
         title=f"Distribution of {y_col} by {x_col}",
-        color_discrete_map=COLOR_MAP,
+        color_discrete_map=COLOUR_MAP,
         custom_data=get_custom_data(df),
         hover_data=generate_dynamic_hover_data(df)
     )
@@ -481,7 +475,7 @@ def create_violin_plot(df, y_col, x_col, color_col):
         color=resolve_color_arg(color_col),
         box=True,
         title=f"Density Shape of {y_col} by {x_col}",
-        color_discrete_map=COLOR_MAP,
+        color_discrete_map=COLOUR_MAP,
         custom_data=get_custom_data(df),
         hover_data=generate_dynamic_hover_data(df)
     )
@@ -503,7 +497,7 @@ def create_bivariate_scatter_plot(df, y_col, x_col, color_col):
         color=resolve_color_arg(color_col),
         trendline="ols",
         title=f"Correlation of {x_col.replace('_', ' ').title()} and {y_col.replace('_', ' ').title()}",
-        color_discrete_map=COLOR_MAP,
+        color_discrete_map=COLOUR_MAP,
         custom_data=get_custom_data(df),
         hover_data=generate_dynamic_hover_data(df)
     )
