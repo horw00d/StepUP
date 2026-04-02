@@ -1,4 +1,5 @@
 import os
+import logging
 import pandas as pd
 import numpy as np
 from sqlalchemy import create_engine
@@ -14,12 +15,12 @@ def init_db():
     Base.metadata.create_all(engine)
     return engine
 
-def ingest_data():
+def run_ingestion():
     engine = init_db()
     session = Session(engine)
     
-    print("Starting ingestion...")
-
+    logging.info("Starting ingestion...")
+    
     meta_path = "/home/cameron/StepUP-P150/participant_metadata.csv" 
     if os.path.exists(meta_path):
         df_meta = pd.read_csv(meta_path)
@@ -37,9 +38,9 @@ def ingest_data():
         
         session.add_all(participants)
         session.commit()
-        print(f"Ingested {len(participants)} participants.")
+        logging.info(f"Ingested {len(participants)} participants.")
     else:
-        print(f"Warning: Could not find {meta_path}")
+        logging.warning(f"Could not find metadata at {meta_path}")
 
     # 2. CRAWL TRIALS AND FOOTSTEPS
     # walk the dir structure: /ParticipantID/Footwear/Speed/
@@ -55,7 +56,7 @@ def ingest_data():
             footwear_cond = parts[-2]
             participant_id = parts[-3]
             
-            # Create the Trial record
+            # create the Trial record
             npz_path = os.path.join(root, "pipeline_1.npz")
             trial = Trial(
                 participant_id=participant_id,
@@ -66,13 +67,13 @@ def ingest_data():
             session.add(trial)
             session.flush() 
             
-            # Load metadata
+            # load metadata
             csv_path = os.path.join(root, "metadata.csv")
             df_steps = pd.read_csv(csv_path)
             
             footsteps_batch = []
             
-            # --- NEW: Safely open .npz and process inside the context manager ---
+            # safely open .npz and process inside the context manager
             if os.path.exists(npz_path):
                 with np.load(npz_path) as data:
                     main_tensor = data['arr_0'] if 'arr_0' in data else None
@@ -141,10 +142,11 @@ def ingest_data():
                     footsteps_batch.append(step)
             
             session.add_all(footsteps_batch)
-            print(f"Processed Trial: {participant_id} - {footwear_cond} - {speed_cond} ({len(footsteps_batch)} steps with Physics)")
+            logging.info(f"Processed Trial: {participant_id} - {footwear_cond} - {speed_cond} ({len(footsteps_batch)} steps)")
             
     session.commit()
-    print("Ingestion complete.")
+    logging.info("Ingestion complete.")
 
 if __name__ == "__main__":
-    ingest_data()
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
+    run_ingestion()
