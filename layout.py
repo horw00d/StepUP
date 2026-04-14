@@ -113,11 +113,11 @@ def get_single_trial_layout():
             html.Div(style={'display': 'flex', 'gap': '30px', 'alignItems': 'flex-end'}, children=[
                 html.Div([
                     html.Label("Side:", style={'fontWeight': 'bold', 'fontSize': '0.9em'}),
-                    dcc.Checklist(id='filter-side', options=[{'label': 'Left', 'value': 'Left'}, {'label': 'Right', 'value': 'Right'}], value=['Left', 'Right'], inline=True, inputStyle={"margin-right": "5px", "margin-left": "10px"})
+                    dcc.Checklist(id='filter-side', options=[{'label': 'Left', 'value': 'Left'}, {'label': 'Right', 'value': 'Right'}], value=['Left', 'Right'], inline=True, inputStyle={"marginRight": "5px", "marginLeft": "10px"})
                 ]),
                 html.Div([
                     html.Label("Status:", style={'fontWeight': 'bold', 'fontSize': '0.9em'}),
-                    dcc.Checklist(id='filter-outlier', options=[{'label': 'Normal', 'value': 'Normal'}, {'label': 'Outlier', 'value': 'Outlier'}], value=['Normal', 'Outlier'], inline=True, inputStyle={"margin-right": "5px", "margin-left": "10px"})
+                    dcc.Checklist(id='filter-outlier', options=[{'label': 'Normal', 'value': 'Normal'}, {'label': 'Outlier', 'value': 'Outlier'}], value=['Normal', 'Outlier'], inline=True, inputStyle={"marginRight": "5px", "marginLeft": "10px"})
                 ]),
                 html.Div(style={'width': '200px'}, children=[
                     html.Label("Filter by Tile:", style={'fontWeight': 'bold', 'fontSize': '0.9em'}),
@@ -191,7 +191,7 @@ def get_single_trial_layout():
             html.Div(style={'flex': '1', 'display': 'flex', 'flexDirection': 'column', 'gap': '10px'}, children=[
                 html.Div(style={'display': 'flex', 'justifyContent': 'space-between', 'alignItems': 'center'}, children=[
                     html.H4("Spatial Footstep Map", style={'marginBottom': '5px'}),
-                    dcc.Checklist(id='isolate-pass-check', options=[{'label': ' Isolate Pass on Click', 'value': 'isolate'}], value=['isolate'], inputStyle={"margin-right": "5px"})
+                    dcc.Checklist(id='isolate-pass-check', options=[{'label': ' Isolate Pass on Click', 'value': 'isolate'}], value=['isolate'], inputStyle={"marginRight": "5px"})
                 ]),
                 html.Div(style={'flex': '1', 'border': '1px solid #ccc', 'borderRadius': '5px', 'padding': '10px'}, children=[
                     with_spinner(dcc.Graph(id='walkway-plot', style={'height': '100%'}))
@@ -318,7 +318,7 @@ def get_cross_trial_layout():
 # MASTER SHELL
 # =====================================================================
 def create_layout():
-    return html.Div(style={'height': '100vh', 'display': 'flex', 'flexDirection': 'column', 'padding': '20px'}, children=[
+    return html.Div(style={'minHeight': '100vh', 'display': 'flex', 'flexDirection': 'column', 'padding': '20px'}, children=[
         
         # --- GLOBAL STATE STORES ---
         # Single-trial stores

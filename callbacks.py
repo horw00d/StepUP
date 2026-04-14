@@ -3,6 +3,7 @@ from dash import html, Input, Output, State, ctx, ALL, no_update, MATCH
 from config import GRANULARITY_COMPATIBLE_GROUPS
 from config import NO_COLOR_SENTINEL
 import plotly.graph_objects as go
+import io
 import pandas as pd
 import data
 import graphics
@@ -262,13 +263,19 @@ def register_callbacks(app):
         if not trigger_id: return no_update
 
         if trigger_id == 'main-scatter' and scatter_click:
-            return scatter_click['points'][0]['customdata'][0]
-        
+            point = scatter_click['points'][0]
+            if 'customdata' in point:
+                return point['customdata'][0]
+
         if trigger_id == 'rug-plot' and rug_click:
-            return rug_click['points'][0]['customdata'][0]
+            point = rug_click['points'][0]
+            if 'customdata' in point:
+                return point['customdata'][0]
 
         if trigger_id == 'walkway-plot' and walkway_click:
-            return walkway_click['points'][0]['customdata'][0]
+            point = walkway_click['points'][0]
+            if 'customdata' in point:
+                return point['customdata'][0]
 
         if isinstance(trigger_id, dict) and trigger_id.get('type') == 'grid-card':
             return trigger_id['index']
@@ -395,7 +402,7 @@ def register_callbacks(app):
             return _empty_ct_figures("No Data Matching Criteria")
 
         # 1. Deserialise the pre-filtered DataFrame
-        df = pd.read_json(raw_df_json, orient='split')
+        df = pd.read_json(io.StringIO(raw_df_json), orient='split')
 
         if df.empty:
             return _empty_ct_figures("No Data Matching Criteria")

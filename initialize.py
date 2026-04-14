@@ -19,7 +19,7 @@ def run_setup():
     try:
         logging.info("\n[Phase 1/2] Ingesting raw StepUP-P150 data into SQLite...")
         # Call the main function from your ingest script
-        ingest.ingest() 
+        ingest.run_ingest() 
 
         logging.info("\n[Phase 2/2] Generating static peak pressure assets...")
         # Call the main function from your asset generator

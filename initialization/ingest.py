@@ -8,22 +8,28 @@ from models import Base, Participant, Trial, Footstep
 from physics import compute_tensor_physics
 
 DATABASE_URL = "sqlite:///stepup.db"
-DATA_ROOT = "/home/cameron/StepUP-P150/"
+DATA_ROOT = "./StepUP-P150/"
 
 def init_db():
     engine = create_engine(DATABASE_URL)
     Base.metadata.create_all(engine)
     return engine
 
-def run_ingestion():
+def run_ingest():
+    db_path = "stepup.db"
+    if os.path.exists(db_path):
+        os.remove(db_path)
+        logging.info("Removed existing stepup.db for a clean initialization.")
+
     engine = init_db()
     session = Session(engine)
     
     logging.info("Starting ingestion...")
     
-    meta_path = "/home/cameron/StepUP-P150/participant_metadata.csv" 
+    meta_path = "./StepUP-P150/participant_metadata.csv" 
     if os.path.exists(meta_path):
-        df_meta = pd.read_csv(meta_path)
+        df_meta = pd.read_csv(meta_path, skipinitialspace=True)
+        df_meta.columns = df_meta.columns.str.strip()
         
         # Bulk create participant objs
         participants = []
@@ -48,6 +54,9 @@ def run_ingestion():
     # Walk the dir
     for root, dirs, files in os.walk(DATA_ROOT):
         if "metadata.csv" in files:
+            df_steps = pd.read_csv(os.path.join(root, 'metadata.csv'), skipinitialspace=True)
+            df_steps.columns = df_steps.columns.str.strip()
+
             # Parse path to get context (like ./001/BF/W1)
             parts = os.path.normpath(root).split(os.sep)
             
@@ -58,18 +67,18 @@ def run_ingestion():
             
             # create the Trial record
             npz_path = os.path.join(root, "pipeline_1.npz")
+                
+            # Check if it exists before assigning to the Trial
+            trial_path = npz_path if os.path.exists(npz_path) else None
+                
             trial = Trial(
                 participant_id=participant_id,
                 footwear=footwear_cond,
                 speed=speed_cond,
-                file_path=npz_path 
+                file_path=trial_path # Safe, explicit assignment
             )
             session.add(trial)
             session.flush() 
-            
-            # load metadata
-            csv_path = os.path.join(root, "metadata.csv")
-            df_steps = pd.read_csv(csv_path)
             
             footsteps_batch = []
             
@@ -112,7 +121,7 @@ def run_ingestion():
                             box_ymin=row['Ymin'],
                             box_ymax=row['Ymax'],
                             r_score=row['Rscore'],
-                            mean_grf=row['MeanGRF'],
+                            mean_grf=row['MeanPressure'],
                             is_outlier=bool(row['Outlier']),
                             is_incomplete=bool(row['Incomplete']),
                             exclude=bool(row['Exclude']),
