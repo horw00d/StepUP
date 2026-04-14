@@ -1,4 +1,5 @@
 import os
+import logging
 import pandas as pd
 import numpy as np
 from sqlalchemy import create_engine
@@ -7,22 +8,28 @@ from models import Base, Participant, Trial, Footstep
 from physics import compute_tensor_physics
 
 DATABASE_URL = "sqlite:///stepup.db"
-DATA_ROOT = "/home/cameron/StepUP-P150/"
+DATA_ROOT = "./StepUP-P150/"
 
 def init_db():
     engine = create_engine(DATABASE_URL)
     Base.metadata.create_all(engine)
     return engine
 
-def ingest_data():
+def run_ingest():
+    db_path = "stepup.db"
+    if os.path.exists(db_path):
+        os.remove(db_path)
+        logging.info("Removed existing stepup.db for a clean initialization.")
+
     engine = init_db()
     session = Session(engine)
     
-    print("Starting ingestion...")
-
-    meta_path = "/home/cameron/StepUP-P150/participant_metadata.csv" 
+    logging.info("Starting ingestion...")
+    
+    meta_path = "./StepUP-P150/participant_metadata.csv" 
     if os.path.exists(meta_path):
-        df_meta = pd.read_csv(meta_path)
+        df_meta = pd.read_csv(meta_path, skipinitialspace=True)
+        df_meta.columns = df_meta.columns.str.strip()
         
         # Bulk create participant objs
         participants = []
@@ -37,9 +44,9 @@ def ingest_data():
         
         session.add_all(participants)
         session.commit()
-        print(f"Ingested {len(participants)} participants.")
+        logging.info(f"Ingested {len(participants)} participants.")
     else:
-        print(f"Warning: Could not find {meta_path}")
+        logging.warning(f"Could not find metadata at {meta_path}")
 
     # 2. CRAWL TRIALS AND FOOTSTEPS
     # walk the dir structure: /ParticipantID/Footwear/Speed/
@@ -47,6 +54,9 @@ def ingest_data():
     # Walk the dir
     for root, dirs, files in os.walk(DATA_ROOT):
         if "metadata.csv" in files:
+            df_steps = pd.read_csv(os.path.join(root, 'metadata.csv'), skipinitialspace=True)
+            df_steps.columns = df_steps.columns.str.strip()
+
             # Parse path to get context (like ./001/BF/W1)
             parts = os.path.normpath(root).split(os.sep)
             
@@ -55,24 +65,24 @@ def ingest_data():
             footwear_cond = parts[-2]
             participant_id = parts[-3]
             
-            # Create the Trial record
+            # create the Trial record
             npz_path = os.path.join(root, "pipeline_1.npz")
+                
+            # Check if it exists before assigning to the Trial
+            trial_path = npz_path if os.path.exists(npz_path) else None
+                
             trial = Trial(
                 participant_id=participant_id,
                 footwear=footwear_cond,
                 speed=speed_cond,
-                file_path=npz_path 
+                file_path=trial_path # Safe, explicit assignment
             )
             session.add(trial)
             session.flush() 
             
-            # Load metadata
-            csv_path = os.path.join(root, "metadata.csv")
-            df_steps = pd.read_csv(csv_path)
-            
             footsteps_batch = []
             
-            # --- NEW: Safely open .npz and process inside the context manager ---
+            # safely open .npz and process inside the context manager
             if os.path.exists(npz_path):
                 with np.load(npz_path) as data:
                     main_tensor = data['arr_0'] if 'arr_0' in data else None
@@ -111,7 +121,7 @@ def ingest_data():
                             box_ymin=row['Ymin'],
                             box_ymax=row['Ymax'],
                             r_score=row['Rscore'],
-                            mean_grf=row['MeanGRF'],
+                            mean_grf=row['MeanPressure'],
                             is_outlier=bool(row['Outlier']),
                             is_incomplete=bool(row['Incomplete']),
                             exclude=bool(row['Exclude']),
@@ -141,10 +151,11 @@ def ingest_data():
                     footsteps_batch.append(step)
             
             session.add_all(footsteps_batch)
-            print(f"Processed Trial: {participant_id} - {footwear_cond} - {speed_cond} ({len(footsteps_batch)} steps with Physics)")
+            logging.info(f"Processed Trial: {participant_id} - {footwear_cond} - {speed_cond} ({len(footsteps_batch)} steps)")
             
     session.commit()
-    print("Ingestion complete.")
+    logging.info("Ingestion complete.")
 
 if __name__ == "__main__":
-    ingest_data()
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
+    run_ingestion()

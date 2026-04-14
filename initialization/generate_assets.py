@@ -1,4 +1,5 @@
 import os
+import logging
 import numpy as np
 import matplotlib.pyplot as plt
 from sqlalchemy import create_engine, select
@@ -13,14 +14,14 @@ DATABASE_URL = "sqlite:///stepup.db"
 os.makedirs(ASSETS_DIR, exist_ok=True)
 os.makedirs(DATA_DIR, exist_ok=True)
 
-def generate_assets():
+def run_generate_assets():
     engine = create_engine(DATABASE_URL)
     session = Session(engine)
 
     stmt = select(Trial).where(Trial.file_path.is_not(None))
     trials = session.scalars(stmt).all()
     
-    print(f"Processing {len(trials)} trials...")
+    logging.info(f"Processing {len(trials)} trials...")
 
     for trial in trials:
         if not os.path.exists(trial.file_path): continue
@@ -65,13 +66,14 @@ def generate_assets():
                             np.save(npy_path, aligned_matrix)
                     
                     except Exception as step_error:
-                        print(f"Error step {step.id}: {step_error}")
+                        logging.error(f"Error step {step.id}: {step_error}")
                         continue
                         
-            print(f"Processed Trial {trial.id}")
+            logging.info(f"Processed Trial {trial.id}")
             
         except Exception as e:
-            print(f"Error Trial {trial.id}: {e}")
+            logging.error(f"Error Trial {trial.id}: {e}")
 
 if __name__ == "__main__":
-    generate_assets()
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
+    run_generate_assets()

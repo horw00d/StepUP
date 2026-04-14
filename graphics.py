@@ -1,3 +1,4 @@
+from click import group
 import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
@@ -145,13 +146,14 @@ def create_scatter_plot(df, x_col, y_col, color_col, selected_step_id=None):
         if preset_color:
             marker_settings['color'] = preset_color
         
+        group = group.reset_index(drop=True)
         fig.add_trace(go.Scatter(
             x=group[x_col],
             y=group[y_col],
             mode='markers',
             name=str(name),
             marker=marker_settings,
-            customdata=group[['id', 'footstep_index']].values,
+            customdata=group[['id', 'footstep_index']].values.tolist(),
             hovertemplate=f"{x_col}: %{{x}}<br>{y_col}: %{{y}}<br>Step: %{{customdata[1]}}<extra></extra>"
         ))
 
@@ -202,13 +204,14 @@ def create_rug_plot(df, rug_col, color_col, selected_step_id=None):
         marker_color = COLOUR_MAP.get(name, None)
         
         # Simulate Rug plot using Scatter where y=0
+        group = group.reset_index(drop=True)
         fig.add_trace(go.Scatter(
             x=group[rug_col],
-            y=[0] * len(group), # Flat line
+            y=[0] * len(group),
             mode='markers',
             name=str(name),
             marker=dict(symbol='line-ns-open', size=10, line=dict(width=2), color=marker_color),
-            customdata=group[['id', 'footstep_index']].values,
+            customdata=group[['id', 'footstep_index']].values.tolist(),
             hovertemplate=f"{rug_col}: %{{x}}<br>Step: %{{customdata[1]}}<extra></extra>"
         ))
 
