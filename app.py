@@ -1,10 +1,13 @@
 import dash
 from layout import create_layout
 from callbacks import register_callbacks
+from config import EXTERNAL_STYLESHEETS
 
 # 1. Setup
-external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
-app = dash.Dash(__name__, external_stylesheets=external_stylesheets, title="StepUP Analyst")
+external_stylesheets = EXTERNAL_STYLESHEETS
+app = dash.Dash(
+    __name__, external_stylesheets=external_stylesheets, title="StepUP Analyst"
+)
 
 # 2. Inject Layout
 app.layout = create_layout()
@@ -13,6 +16,6 @@ app.layout = create_layout()
 register_callbacks(app)
 
 # 4. Run
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run(debug=True, port=8000)
     print("App is running on http://localhost:8000")
