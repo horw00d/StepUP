@@ -1,7 +1,7 @@
 import dash
-from layout import create_layout
 from callbacks import register_callbacks
 from config import EXTERNAL_STYLESHEETS
+from layout import create_layout
 
 # 1. Setup
 external_stylesheets = EXTERNAL_STYLESHEETS

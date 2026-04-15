@@ -66,7 +66,7 @@ def validate_query_string(query_string):
         return True, ""
 
     # 2. Check for illegal characters
-    # We only allow alphanumeric, spaces, quotes, standard math/logic operators, and brackets.
+    # Only allow alphanumeric, spaces, quotes, standard logic operators, brackets.
     # Anything else triggers an immediate failure.
     if re.search(r'[^a-zA-Z0-9_\s><=!()[\]\'".,-]', query_string):
         return False, "Query contains illegal characters."
@@ -85,7 +85,7 @@ def validate_query_string(query_string):
         if word not in ALLOWED_COLUMNS and word not in ALLOWED_KEYWORDS:
             return (
                 False,
-                f"Invalid term: '{word}'. Only approved columns and operators are allowed.",
+                f"Invalid term: '{word}'. Only approved columns/operators are allowed.",
             )
 
     # 6. Passed all security checks
