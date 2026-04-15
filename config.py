@@ -16,7 +16,7 @@ ALLOWED_COLUMNS = [
     "footstep_index",
     "start_frame",
     "r_score",
-    # Kinetic Metrics
+    # Kinematic Metrics
     "mean_grf",
     "peak_grf",
     "stance_duration_frames",
@@ -74,3 +74,57 @@ DESIRED_HOVER_COLS = [
 ]
 
 EXTERNAL_STYLESHEETS = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
+
+FEATURE_OPTIONS = [
+    {"label": "Footstep Sequence ID", "value": "footstep_index"},
+    {"label": "Start Frame (Time)", "value": "start_frame"},
+    {"label": "R-Score (Quality)", "value": "r_score"},
+    {"label": "Mean GRF (Pressure)", "value": "mean_grf"},
+    {"label": "Peak GRF (Pressure)", "value": "peak_grf"},
+    {"label": "Stance Duration", "value": "stance_duration_frames"},
+    {"label": "Foot Length", "value": "foot_length"},
+    {"label": "Foot Width", "value": "foot_width"},
+    {"label": "Rotation Angle", "value": "rotation_angle"},
+]
+
+CT_GROUP_OPTIONS = [
+    {"label": "Footwear Type", "value": "footwear"},
+    {"label": "Walking Speed", "value": "speed"},
+    {"label": "Biological Sex", "value": "sex"},
+    {"label": "Participant ID", "value": "participant_id"},
+]
+
+CT_COLOR_OPTIONS = [
+    {"label": "None", "value": NO_COLOR_SENTINEL},
+    {"label": "Footwear Type", "value": "footwear"},
+    {"label": "Walking Speed", "value": "speed"},
+    {"label": "Biological Sex", "value": "sex"},
+    {"label": "Side (Left/Right)", "value": "side"},
+    {"label": "Outlier Status", "value": "is_outlier"},
+]
+
+# LAYOUT CONSTANTS
+
+# Options for the single-trial Color By dropdown.
+ST_COLOR_OPTIONS = [
+    {"label": "Side (L/R)", "value": "side"},
+    {"label": "Outlier Status", "value": "is_outlier"},
+    {"label": "Tile ID", "value": "tile_id"},
+    {"label": "Pass ID", "value": "pass_id"},
+]
+
+# ── Internal constants ─────────────────────────────────────────────────────────
+_VALID_TAB_NAMES = frozenset({"single", "cross"})
+
+# Maps tab_name to the string prefix used in non-pattern-matched component IDs.
+_TAB_PREFIX = {"single": "st", "cross": "ct"}
+
+_QUERY_PLACEHOLDER = {
+    "single": "e.g., peak_grf > 800 and is_outlier == 'Normal'",
+    "cross": "e.g., age >= 60 and peak_grf < 600",
+}
+
+_APPLY_BTN_ID = {
+    "single": "st-apply-query-btn",
+    "cross": "ct-apply-query-btn",
+}
