@@ -1,5 +1,4 @@
 import numpy as np
-import time
 from scipy.signal import butter, filtfilt
 from sqlalchemy import select
 from models import Footstep
@@ -23,7 +22,6 @@ def get_batch_physics(step_ids):
     if not step_ids:
         return []
 
-    start_time = time.time()
     all_metrics = []
 
     # 1 fetch all steps in a single DB query
@@ -164,7 +162,7 @@ def compute_tensor_physics(tensor):
         return {
             "peak_grf": float(np.max(grf_final)) if len(grf_final) > 0 else 0.0,
             "stance_duration_frames": int(frames),
-            "time_pct_array": time_pct.tolist(),  # Convert to standard Python lists for JSON serialization
+            "time_pct_array": time_pct.tolist(), # Python lists for JSON serialization
             "grf_array": grf_final.tolist(),
             "cop_ml_array": cop_ml_final.tolist(),
             "cop_ap_array": cop_ap_final.tolist(),

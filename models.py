@@ -9,10 +9,7 @@ from sqlalchemy import (
     Index,
     JSON,
 )
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-
-# Legacy/1.4 style for compatibility with this environment
-from sqlalchemy.orm import declarative_base
+from sqlalchemy.orm import Mapped, mapped_column, relationship, declarative_base
 
 Base = declarative_base()
 

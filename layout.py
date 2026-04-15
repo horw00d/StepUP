@@ -2,7 +2,6 @@ from dash import html, dcc
 from sqlalchemy import select, distinct
 from models import Trial, Participant
 from database import engine, Session
-from config import NO_COLOR_SENTINEL, Granularity
 
 # Constants
 FEATURE_OPTIONS = [

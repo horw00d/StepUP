@@ -67,7 +67,7 @@ def validate_query_string(query_string):
 
     # 2. Check for illegal characters
     # We only allow alphanumeric, spaces, quotes, standard math/logic operators, and brackets.
-    # Anything else (like ;, @, $, or system path slashes) triggers an immediate failure.
+    # Anything else triggers an immediate failure.
     if re.search(r'[^a-zA-Z0-9_\s><=!()[\]\'".,-]', query_string):
         return False, "Query contains illegal characters."
 
@@ -96,7 +96,7 @@ def validate_query_string(query_string):
 # These are the columns that define "one row" at that level of analysis.
 # IMPORTANT: 'side' is intentionally excluded from PARTICIPANT_GROUP_KEYS.
 # At participant granularity, the unit of analysis is the person, not the foot.
-# Left and Right steps are averaged together into a single bilateral mean per participant.
+# Left and Right steps are averaged together into a single bilateral mean a participant.
 # This is a conscious biomechanical decision: symmetric metrics (GRF, stance duration,
 # foot dimensions) are valid to average across sides. Laterality analysis belongs
 # at footstep or trial granularity where side remains a grouping key.
@@ -137,7 +137,7 @@ def apply_data_granularity(df, granularity):
         group_keys = PARTICIPANT_GROUP_KEYS
     else:
         print(
-            f"Warning: Unknown granularity '{granularity}'. Returning unaggregated data."
+            f"Warning: Unknown granularity '{granularity}'. Returning unaggregated data"
         )
         return df
 

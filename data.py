@@ -2,13 +2,12 @@ import os
 import json
 import pandas as pd
 import numpy as np
-from sqlalchemy import select, distinct, text
+from sqlalchemy import select, distinct
 from types import SimpleNamespace
 from database import Session, engine
 from models import Trial, Footstep, Participant
 from config import SENSOR_SIZE, TILE_SIZE
 from functools import lru_cache
-import time
 
 
 def get_dropdown_options(model_col):
@@ -21,7 +20,8 @@ def get_dropdown_options(model_col):
 @lru_cache(maxsize=32)
 def fetch_trial_data(part, shoe, speed):
     """
-    Fetches the Trial and Footsteps, returning a processed DataFrame and the raw steps list.
+    Fetches the Trial and Footsteps
+    Returns a processed DataFrame and the raw steps list
     """
     with Session(engine) as session:
         # 1 fetch trial

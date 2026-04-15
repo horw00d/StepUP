@@ -1,0 +1,16 @@
+[flake8]
+# Ignore specific error codes
+ignore = E203, W503
+# Set maximum line length to match modern formatters like Black
+max-line-length = 88
+# Exclude non-source directories
+exclude = 
+    .git,
+    __pycache__,
+    assets,
+    *.db,
+    venv,
+    StepUP-P150,
+    testing
+# Check for complex code
+max-complexity = 10

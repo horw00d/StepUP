@@ -1,4 +1,4 @@
-from helpers import filter_dataframe, apply_advanced_query, apply_data_granularity
+from helpers import filter_dataframe, apply_data_granularity
 from dash import html, Input, Output, State, ctx, ALL, no_update, MATCH
 from config import GRANULARITY_COMPATIBLE_GROUPS
 from config import NO_COLOR_SENTINEL
