@@ -24,11 +24,11 @@ def run_setup():
 
         logging.info("\n[Phase 2/2] Generating static peak pressure assets...")
         # Call the main function from your asset generator
-        # generate_assets.generate_assets()
+        generate_assets.generate_assets()
 
         t1 = time.time()
         logging.info("\n==================================================")
-        logging.info(f"Initialization Complete in {t1-t0:.2f} seconds.")
+        logging.info(f"Initialization Complete in {t1 - t0:.2f} seconds.")
         logging.info("You may now launch the platform by running: python app.py")
         logging.info("==================================================")
 

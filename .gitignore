@@ -1,6 +1,7 @@
 __pycache__/
 assets/
-*.db
-profiler.py
 .venv/
 StepUP-P150/
+testing/
+*.db
+profiler.py

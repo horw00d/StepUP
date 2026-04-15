@@ -11,7 +11,7 @@ if os.path.exists(broken_file):
             # Print all keys (variable names) inside the file
             print(f"Keys found in {os.path.basename(broken_file)}:")
             print(data.files)
-            
+
             # Optional: Print shape of the first key found to confirm it's the right data
             if len(data.files) > 0:
                 first_key = data.files[0]

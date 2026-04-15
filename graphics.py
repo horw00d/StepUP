@@ -1,17 +1,8 @@
-from click import group
 import plotly.graph_objects as go
 import plotly.express as px
-import pandas as pd
 import numpy as np
 from config import NO_COLOR_SENTINEL, DESIRED_HOVER_COLS, COLOUR_MAP
 
-# define standard colors for consistency across app
-COLOUR_MAP = {
-    "Left": "#1f77b4",  # Muted Blue
-    "Right": "#2ca02c",  # Muted Green
-    "Normal": "#7f7f7f",  # Gray
-    "Outlier": "#d62728",  # Red
-}
 
 # HELPERS
 
@@ -19,12 +10,12 @@ COLOUR_MAP = {
 def generate_dynamic_hover_data(df):
     """
     Dynamically generates Plotly hover_data dictionary.
-    Only includes keys that currently exist in the DataFrame to prevent Plotly validation errors.
+    Includes keys that exist in the DataFrame, prevents Plotly validation errors.
     """
     # List all the columns you ever want to see in a tooltip, in the order you want them
     desired_hover_cols = DESIRED_HOVER_COLS
 
-    # Build the dictionary dynamically: only add the column if it survived the aggregation
+    # Build dictionary dynamically: only add the column if it survived the aggregation
     return {col: True for col in desired_hover_cols if col in df.columns}
 
 
@@ -168,7 +159,7 @@ def create_scatter_plot(df, x_col, y_col, color_col, selected_step_id=None):
     groups = df.groupby(color_col)
 
     for name, group in groups:
-        # check if there is a preset color (e.g., Left/Right), otherwise let Plotly cycle defaults
+        # check if there is a preset color, otherwise let Plotly cycle defaults
         preset_color = COLOUR_MAP.get(name, None)
 
         marker_settings = dict(size=10, opacity=0.7)
@@ -580,7 +571,7 @@ def create_violin_plot(df, y_col, x_col, color_col):
 
 def create_bivariate_scatter_plot(df, y_col, x_col, color_col):
     """
-    Generates a Bivariate Scatter Plot to show correlations between two continuous metrics.
+    Generates a Bivariate Scatter Plot to show correlations for twometrics.
     Includes an OLS trendline for instant regression analysis.
     """
     if df.empty:

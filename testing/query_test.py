@@ -13,11 +13,7 @@ session = Session(engine)
 # ---------------------------------------------------------
 print("--- QUERY 1: Finding P001 Barefoot Trials ---")
 
-stmt = (
-    select(Trial)
-    .where(Trial.participant_id == "001")
-    .where(Trial.footwear == "BF")
-)
+stmt = select(Trial).where(Trial.participant_id == "001").where(Trial.footwear == "BF")
 
 trials = session.scalars(stmt).all()
 
@@ -34,7 +30,7 @@ print("\n--- QUERY 2: Counting Outliers in W2 ---")
 # We join Footstep -> Trial to filter by speed 'W2'
 stmt = (
     select(func.count(Footstep.id))
-    .join(Trial) 
+    .join(Trial)
     .where(Trial.speed == "W2")
     .where(Footstep.is_outlier == True)
 )
@@ -50,15 +46,13 @@ print(f"Total outliers in Slow-to-Stop (W2) trials: {outlier_count}")
 print("\n--- QUERY 3: Detailed Footstep Data ---")
 
 # Get first 5 steps of the first trial found above
-first_trial = trials[0] 
+first_trial = trials[0]
 
-stmt = (
-    select(Footstep)
-    .where(Footstep.trial_id == first_trial.id)
-    .limit(5)
-)
+stmt = select(Footstep).where(Footstep.trial_id == first_trial.id).limit(5)
 
 steps = session.scalars(stmt).all()
 
 for s in steps:
-    print(f"Step {s.footstep_index}: Frame {s.start_frame}-{s.end_frame} (R-Score: {s.r_score})")
+    print(
+        f"Step {s.footstep_index}: Frame {s.start_frame}-{s.end_frame} (R-Score: {s.r_score})"
+    )
