@@ -3,7 +3,21 @@ from dash import html, Input, Output, State, ctx, ALL, no_update
 import plotly.graph_objects as go
 import pandas as pd
 import data
-import graphics
+from graphics.cross_trial_graphics import (
+    create_box_plot,
+    create_violin_plot,
+    create_bivariate_scatter_plot,
+    create_aggregate_waveform_plot,
+)
+from graphics.single_trial_graphics import (
+    create_grf_plot,
+    create_cop_plot,
+    create_heatmap_and_histogram,
+    create_rug_plot,
+    create_scatter_plot,
+    create_walkway_plot,
+    get_empty_physics_layout,
+)
 
 
 def register_single_trial_callbacks(app):
@@ -96,26 +110,24 @@ def register_single_trial_callbacks(app):
         selected_step_id,
     ):
         if not filtered_data or not (part and shoe and speed):
-            return graphics.create_scatter_plot(
-                pd.DataFrame(), "", "", ""
-            ), graphics.create_rug_plot(pd.DataFrame(), "", "")
+            return create_scatter_plot(pd.DataFrame(), "", "", ""), create_rug_plot(
+                pd.DataFrame(), "", ""
+            )
 
         valid_ids = filtered_data.get("valid_ids", [])
         trial, steps, df = data.fetch_trial_data(part, shoe, speed)
 
         if not trial or df.empty:
-            return graphics.create_scatter_plot(
-                pd.DataFrame(), "", "", ""
-            ), graphics.create_rug_plot(pd.DataFrame(), "", "")
+            return create_scatter_plot(pd.DataFrame(), "", "", ""), create_rug_plot(
+                pd.DataFrame(), "", ""
+            )
 
         df_filtered = df[df["id"].isin(valid_ids)]
 
-        scatter_fig = graphics.create_scatter_plot(
+        scatter_fig = create_scatter_plot(
             df_filtered, x_col, y_col, color_col, selected_step_id
         )
-        rug_fig = graphics.create_rug_plot(
-            df_filtered, rug_col, color_col, selected_step_id
-        )
+        rug_fig = create_rug_plot(df_filtered, rug_col, color_col, selected_step_id)
 
         return scatter_fig, rug_fig
 
@@ -142,8 +154,8 @@ def register_single_trial_callbacks(app):
         # Guard first and build key when inputs are valid
         if not filtered_data or not (part and shoe and speed):
             return (
-                graphics.create_grf_plot([]),
-                graphics.create_cop_plot([]),
+                create_grf_plot([]),
+                create_cop_plot([]),
                 cache or {},
             )
 
@@ -152,7 +164,7 @@ def register_single_trial_callbacks(app):
             cache = {"trial_key": current_trial_key, "metrics": []}
 
         if not filtered_data or not (part and shoe and speed):
-            return graphics.create_grf_plot([]), graphics.create_cop_plot([]), cache
+            return create_grf_plot([]), create_cop_plot([]), cache
 
         valid_ids = filtered_data.get("valid_ids", [])
         is_overlay = overlay_mode == "overlay"
@@ -175,10 +187,10 @@ def register_single_trial_callbacks(app):
 
         required_metrics = [m for m in cached_metrics if m["step_id"] in target_ids]
 
-        fig_grf = graphics.create_grf_plot(
+        fig_grf = create_grf_plot(
             required_metrics, selected_step_id, overlay_mode=is_overlay
         )
-        fig_cop = graphics.create_cop_plot(
+        fig_cop = create_cop_plot(
             required_metrics, selected_step_id, overlay_mode=is_overlay
         )
 
@@ -220,12 +232,12 @@ def register_single_trial_callbacks(app):
                 ]
 
         if df_filtered.empty:
-            return graphics.create_walkway_plot([], selected_step_id)
+            return create_walkway_plot([], selected_step_id)
 
         final_valid_ids = set(df_filtered["id"])
         filtered_steps_list = [s for s in steps if s.id in final_valid_ids]
 
-        return graphics.create_walkway_plot(filtered_steps_list, selected_step_id)
+        return create_walkway_plot(filtered_steps_list, selected_step_id)
 
     # D. UPDATE PRESSURE PLOTS
     @app.callback(
@@ -234,14 +246,12 @@ def register_single_trial_callbacks(app):
     )
     def update_pressure_plots(step_id, scale_mode):
         if not step_id:
-            return graphics.create_heatmap_and_histogram(None, None)
+            return create_heatmap_and_histogram(None, None)
 
         matrix = data.fetch_footstep_matrix(step_id)
         is_dynamic = scale_mode == "dynamic"
 
-        return graphics.create_heatmap_and_histogram(
-            matrix, step_id, dynamic_scale=is_dynamic
-        )
+        return create_heatmap_and_histogram(matrix, step_id, dynamic_scale=is_dynamic)
 
     # E. UPDATE IMAGE GRID
     @app.callback(

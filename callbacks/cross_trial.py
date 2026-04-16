@@ -6,7 +6,17 @@ import plotly.graph_objects as go
 import io
 import pandas as pd
 import data
-import graphics
+from graphics.cross_trial_graphics import (
+    create_box_plot,
+    create_violin_plot,
+    create_bivariate_scatter_plot,
+    create_aggregate_waveform_plot,
+)
+from graphics.single_trial_graphics import (
+    create_grf_plot,
+    create_cop_plot,
+    get_empty_physics_layout,
+)
 
 # =====================================================================
 # CROSS-TRIAL CALLBACKS
@@ -22,7 +32,7 @@ def _empty_ct_figures(title: str):
     plot outputs, each displaying the given title as a placeholder message.
     Used to populate all four chart outputs in a single early-return statement.
     """
-    fig = go.Figure(layout=graphics.get_empty_physics_layout(title))
+    fig = go.Figure(layout=get_empty_physics_layout(title))
     return fig, fig, fig, fig
 
 
@@ -152,20 +162,20 @@ def register_cross_trial_callbacks(app):
         safe_color = color if color in df_agg.columns else None
 
         # 3. Build figures
-        box_fig = graphics.create_box_plot(
+        box_fig = create_box_plot(
             df_agg, y_col=metric_y, x_col=safe_group, color_col=safe_color
         )
-        violin_fig = graphics.create_violin_plot(
+        violin_fig = create_violin_plot(
             df_agg, y_col=metric_y, x_col=safe_group, color_col=safe_color
         )
-        scatter_fig = graphics.create_bivariate_scatter_plot(
+        scatter_fig = create_bivariate_scatter_plot(
             df_agg, y_col=metric_y, x_col=metric_x, color_col=safe_color
         )
 
         time_pct, mean_grf, upper_bound, lower_bound = data.fetch_aggregate_waveforms(
             raw_step_ids
         )
-        wave_fig = graphics.create_aggregate_waveform_plot(
+        wave_fig = create_aggregate_waveform_plot(
             time_pct, mean_grf, upper_bound, lower_bound
         )
 

@@ -34,8 +34,10 @@ def get_single_trial_layout() -> html.Div:
 
 def _get_st_header() -> html.Div:
     """Participant / footwear / speed selectors and trial-status badge."""
+
     def first(opts):
         return opts[0]["value"] if opts else None
+
     return html.Div(
         style={
             "borderBottom": "1px solid #ddd",
