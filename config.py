@@ -128,3 +128,21 @@ _APPLY_BTN_ID = {
     "single": "st-apply-query-btn",
     "cross": "ct-apply-query-btn",
 }
+
+# GRAPHICS CONSTANTS
+
+_GHOST_LINE_COLOR = "lightgrey"
+_GHOST_LINE_WIDTH = 1
+_GHOST_LINE_OPACITY = 0.3
+
+_SELECTED_GRF_COLOR = "#007BFF"
+_SELECTED_GRF_WIDTH = 3
+
+_HEATMAP_NOISE_FLOOR_KPA = 10
+_HEATMAP_FIXED_MAX_KPA = 800
+
+_LEGEND_OVERFLOW_THRESHOLD = 5  # categories above this move the legend to the right
+
+_STANDARD_MARGIN_SM = dict(l=20, r=20, t=30, b=20)
+_STANDARD_MARGIN_LG = dict(l=40, r=20, t=40, b=40)
+_STANDARD_BGCOLOR = "#f9f9f9"
