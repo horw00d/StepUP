@@ -13,8 +13,6 @@ from graphics.cross_trial_graphics import (
     create_aggregate_waveform_plot,
 )
 from graphics.single_trial_graphics import (
-    create_grf_plot,
-    create_cop_plot,
     get_empty_physics_layout,
 )
 

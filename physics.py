@@ -7,7 +7,7 @@ from config import SENSOR_AREA_M2, SENSOR_SIDE_CM, SAMPLING_FREQ
 
 
 def safe_filtfilt(b, a, signal):
-    """Safely applies filtfilt, bypassing if the array is too short."""
+    """applies filtfilt, bypassing if the array is too short."""
     padlen = 3 * max(len(a), len(b))
     if len(signal) <= padlen:
         return signal
@@ -16,8 +16,8 @@ def safe_filtfilt(b, a, signal):
 
 def get_batch_physics(step_ids):
     """
-    FULLY OPTIMIZED: Reads the DB once, opens the .npz file once,
-    and uses pure NumPy Vectorization to process math instantly.
+    reads DB once, opens the .npz file once,
+    and uses pure NumPy Vectorization to process
     """
     if not step_ids:
         return []
