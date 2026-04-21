@@ -3,12 +3,6 @@ from dash import html, Input, Output, State, ctx, ALL, no_update
 import plotly.graph_objects as go
 import pandas as pd
 import data
-from graphics.cross_trial_graphics import (
-    create_box_plot,
-    create_violin_plot,
-    create_bivariate_scatter_plot,
-    create_aggregate_waveform_plot,
-)
 from graphics.single_trial_graphics import (
     create_grf_plot,
     create_cop_plot,
@@ -16,7 +10,6 @@ from graphics.single_trial_graphics import (
     create_rug_plot,
     create_scatter_plot,
     create_walkway_plot,
-    get_empty_physics_layout,
 )
 
 
